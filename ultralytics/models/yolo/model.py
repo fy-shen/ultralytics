@@ -19,6 +19,7 @@ from ultralytics.nn.tasks import (
     WorldModel,
     YOLOEModel,
     YOLOESegModel,
+    MotionDetectionModel,
 )
 from ultralytics.utils import ROOT, YAML
 
@@ -115,6 +116,12 @@ class YOLO(Model):
                 "validator": yolo.obb.OBBValidator,
                 "predictor": yolo.obb.OBBPredictor,
             },
+            "motion": {
+                "model": MotionDetectionModel,
+                "trainer": yolo.motion.MotionTrainer,
+                "validator": yolo.motion.MotionValidator,
+                "predictor": yolo.motion.MotionPredictor,
+            }
         }
 
 

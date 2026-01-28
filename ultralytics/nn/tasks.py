@@ -1306,6 +1306,14 @@ class Ensemble(torch.nn.ModuleList):
         return y, None  # inference, train output
 
 
+class MotionDetectionModel(DetectionModel):
+    # TODO: 目前需要根据运动特征的数量手动修改通道数
+    def __init__(self, cfg="yolo26n.yaml", ch=3, nc=None, verbose=True):
+        cfg = cfg if isinstance(cfg, dict) else yaml_model_load(cfg)
+        ch = cfg.get("channels", ch)
+        super().__init__(cfg=cfg, ch=ch, nc=nc, verbose=verbose)
+
+
 # Functions ------------------------------------------------------------------------------------------------------------
 
 

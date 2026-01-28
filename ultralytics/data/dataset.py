@@ -8,6 +8,7 @@ from itertools import repeat
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from typing import Any
+import math
 
 import cv2
 import numpy as np
@@ -19,6 +20,7 @@ from ultralytics.utils import LOCAL_RANK, LOGGER, NUM_THREADS, TQDM, colorstr
 from ultralytics.utils.instance import Instances
 from ultralytics.utils.ops import resample_segments, segments2boxes
 from ultralytics.utils.torch_utils import TORCHVISION_0_18
+from ultralytics.utils.patches import imread
 
 from .augment import (
     Compose,
@@ -832,3 +834,50 @@ class ClassificationDataset:
             x["msgs"] = msgs  # warnings
             save_dataset_cache_file(self.prefix, path, x, DATASET_CACHE_VERSION)
             return samples
+
+
+class MotionDataset(YOLODataset):
+    def load_image(self, i: int, rect_mode: bool = True) -> tuple[np.ndarray, tuple[int, int], tuple[int, int]]:
+        f = self.im_files[i]
+        im = imread(f, flags=self.cv2_flag)  # BGR
+
+        h0, w0 = im.shape[:2]  # orig hw
+        if rect_mode:  # resize long side to imgsz while maintaining aspect ratio
+            r = self.imgsz / max(h0, w0)  # ratio
+            if r != 1:  # if sizes are not equal
+                w, h = (min(math.ceil(w0 * r), self.imgsz), min(math.ceil(h0 * r), self.imgsz))
+                im = cv2.resize(im, (w, h), interpolation=cv2.INTER_LINEAR)
+        elif not (h0 == w0 == self.imgsz):  # resize by stretching image to square imgsz
+            im = cv2.resize(im, (self.imgsz, self.imgsz), interpolation=cv2.INTER_LINEAR)
+        if im.ndim == 2:
+            im = im[..., None]
+
+        motion_imgs = []
+        for motion_name in self.data.get("motion", []):
+            motion_path = str(f).replace("images", motion_name)
+
+            m = imread(motion_path, flags=cv2.IMREAD_GRAYSCALE)
+            if m is None:
+                raise FileNotFoundError(f"Motion image not found: {motion_path}")
+
+            # resize 与 RGB 完全一致
+            if rect_mode:
+                if r != 1:
+                    m = cv2.resize(m, (im.shape[1], im.shape[0]), interpolation=cv2.INTER_LINEAR)
+            elif not (h0 == w0 == self.imgsz):
+                m = cv2.resize(m, (self.imgsz, self.imgsz), interpolation=cv2.INTER_LINEAR)
+
+            motion_imgs.append(m[..., None])  # (H, W, 1)
+
+        if motion_imgs:
+            im = np.concatenate([im] + motion_imgs, axis=2)
+
+        if self.augment:
+            self.ims[i], self.im_hw0[i], self.im_hw[i] = im, (h0, w0), im.shape[:2]  # im, hw_original, hw_resized
+            self.buffer.append(i)
+            if 1 < len(self.buffer) >= self.max_buffer_length:  # prevent empty buffer
+                j = self.buffer.pop(0)
+                if self.cache != "ram":
+                    self.ims[j], self.im_hw0[j], self.im_hw[j] = None, None, None
+
+        return im, (h0, w0), im.shape[:2]
