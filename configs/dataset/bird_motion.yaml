@@ -1,5 +1,5 @@
 
-path: /home/sfy/SFY/disk1/data/FBD-SV-2024
+path: /app/dataset/FBD-SV-2024
 train: train.txt
 val: val.txt
 test:
