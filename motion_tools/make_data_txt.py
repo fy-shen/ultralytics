@@ -48,7 +48,7 @@ def parse_args():
         description="Generate txt files for dataset splits"
     )
     parser.add_argument(
-        "dataset_root",
+        "--data",
         type=Path,
         help="Path to dataset root directory"
     )
