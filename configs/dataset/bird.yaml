@@ -1,0 +1,10 @@
+
+path: /app/dataset/FBD-SV-2024
+train: train.txt
+val: val.txt
+test:
+
+# Classes
+names:
+  0: bird
+

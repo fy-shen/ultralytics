@@ -1,5 +1,5 @@
 from ultralytics import YOLO
 
 
-model = YOLO("./configs/models/11/yolo11n.yaml", task="motion")
-results = model.train(data="./configs/dataset/bird_motion.yaml", epochs=1, imgsz=640)
+model = YOLO("./configs/models/yolo11s.yaml")
+results = model.train(data="./configs/dataset/bird.yaml", epochs=100, imgsz=640, batch=64, device=[0,1])
