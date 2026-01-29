@@ -63,7 +63,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    dataset_root = args.dataset_root
+    dataset_root = args.data
 
     if not dataset_root.exists():
         print(f"[ERROR] Dataset root not found: {dataset_root}")
