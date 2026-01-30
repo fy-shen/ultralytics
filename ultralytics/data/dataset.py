@@ -867,7 +867,13 @@ class MotionDataset(YOLODataset):
             elif not (h0 == w0 == self.imgsz):
                 m = cv2.resize(m, (self.imgsz, self.imgsz), interpolation=cv2.INTER_LINEAR)
 
-            motion_imgs.append(m[..., None])  # (H, W, 1)
+            if m.ndim == 2:
+                m = m[..., None]  # (H, W, 1)
+            elif m.ndim == 3 and m.shape[2] == 1:
+                pass
+            else:
+                raise ValueError(f"Unexpected motion image shape: {m.shape}")
+            motion_imgs.append(m)
 
         if motion_imgs:
             im = np.concatenate([im] + motion_imgs, axis=2)
