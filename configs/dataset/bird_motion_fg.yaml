@@ -1,0 +1,12 @@
+
+path: /app/dataset/FBD-SV-2024
+train: train.txt
+val: val.txt
+test:
+
+motion: ['fgmask']
+channels: 4
+# Classes
+names:
+  0: bird
+
