@@ -153,6 +153,7 @@ runs/
 wandb/
 .DS_Store
 *_local.py
+*_local/
 
 # Neural Network weights -----------------------------------------------------------------------------------------------
 weights/
