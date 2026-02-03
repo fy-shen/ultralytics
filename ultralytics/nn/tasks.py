@@ -1326,7 +1326,46 @@ class MotionDetectionModel(DetectionModel):
     def __init__(self, cfg="yolo26n.yaml", ch=3, nc=None, verbose=True):
         cfg = cfg if isinstance(cfg, dict) else yaml_model_load(cfg)
         ch = cfg.get("channels", ch)
+        self.split_feature = cfg.get("split_feature", False)
+        # if self.split_feature:
+        #     ch = 3
         super().__init__(cfg=cfg, ch=ch, nc=nc, verbose=verbose)
+
+    def _predict_once(self, x, profile=False, visualize=False, embed=None):
+        if self.split_feature:
+            return self._predict_split(x, profile=False, visualize=False, embed=None)
+
+        return super()._predict_once(x, profile=False, visualize=False, embed=None)
+
+    def _predict_split(self, x, profile=False, visualize=False, embed=None):
+        y, dt, embeddings = [], [], []  # outputs
+        embed = frozenset(embed) if embed is not None else {-1}
+        max_idx = max(embed)
+
+        x_rgb = x[:, :3, ...]
+        x_motion = x[:, 3:, ...]
+        for m in self.model:
+            if m.f != -1:  # if not from previous layer
+                if isinstance(m.f, str):
+                    if m.f == "rgb":
+                        x = x_rgb
+                    elif m.f == "fea":
+                        x = x_motion
+                    else:
+                        raise ValueError(f"error input from {m.f}")
+                else:
+                    x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
+            if profile:
+                self._profile_one_layer(m, x, dt)
+            x = m(x)  # run
+            y.append(x if m.i in self.save else None)  # save output
+            if visualize:
+                feature_visualization(x, m.type, m.i, save_dir=visualize)
+            if m.i in embed:
+                embeddings.append(torch.nn.functional.adaptive_avg_pool2d(x, (1, 1)).squeeze(-1).squeeze(-1))  # flatten
+                if m.i == max_idx:
+                    return torch.unbind(torch.cat(embeddings, 1), dim=0)
+        return x
 
 
 # Functions ------------------------------------------------------------------------------------------------------------
@@ -1572,6 +1611,7 @@ def parse_model(d, ch, verbose=True):
 
     if verbose:
         LOGGER.info(f"\n{'':>3}{'from':>20}{'n':>3}{'params':>10}  {'module':<45}{'arguments':<30}")
+    ch_input = ch
     ch = [ch]
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
     base_modules = frozenset(
@@ -1645,7 +1685,18 @@ def parse_model(d, ch, verbose=True):
                     args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
         if m in base_modules:
-            c1, c2 = ch[f], args[0]
+            # 修改输入维度判定逻辑
+            if isinstance(f, str):
+                if f == "rgb":
+                    c1 = 3
+                elif f == "fea":
+                    c1 = ch_input - 3
+                else:
+                    raise ValueError(f"error input from {f}")
+            else:
+                c1 = ch[f]
+            c2 = args[0]
+
             if c2 != nc:  # if c2 != nc (e.g., Classify() output)
                 c2 = make_divisible(min(c2, max_channels) * width, 8)
             if m is C2fAttn:  # set 1) embed channels and 2) num heads
@@ -1725,7 +1776,9 @@ def parse_model(d, ch, verbose=True):
         m_.i, m_.f, m_.type = i, f, t  # attach index, 'from' index, type
         if verbose:
             LOGGER.info(f"{i:>3}{f!s:>20}{n_:>3}{m_.np:10.0f}  {t:<45}{args!s:<30}")  # print
-        save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
+        # 修改保存逻辑
+        if not isinstance(f, str):
+            save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
         layers.append(m_)
         if i == 0:
             ch = []
