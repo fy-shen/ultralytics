@@ -6,7 +6,7 @@
 
 # Parameters
 nc: 1 # number of classes
-channels: 6
+channels: 5
 
 end2end: True # whether to use end-to-end mode
 reg_max: 1 # DFL bins

@@ -1352,6 +1352,42 @@ class MotionDetectionModel(DetectionModel):
                     return torch.unbind(torch.cat(embeddings, 1), dim=0)
         return x
 
+    def load(self, weights, verbose=True):
+        """Load weights into the model.
+
+        Args:
+            weights (dict | torch.nn.Module): The pre-trained weights to be loaded.
+            verbose (bool, optional): Whether to log the transfer progress.
+        """
+        model = weights["model"] if isinstance(weights, dict) else weights  # torchvision models are not dicts
+        csd = model.float().state_dict()  # checkpoint state_dict as FP32
+        if len(self.state_dict()) <= len(model.state_dict()):
+            updated_csd = intersect_dicts(csd, self.state_dict())  # intersect
+            self.load_state_dict(updated_csd, strict=False)  # load
+            len_updated_csd = len(updated_csd)
+            first_conv = "model.0.conv.weight"  # hard-coded to yolo models for now
+            # mostly used to boost multi-channel training
+            state_dict = self.state_dict()
+            if first_conv not in updated_csd and first_conv in state_dict:
+                c1, c2, h, w = state_dict[first_conv].shape
+                cc1, cc2, ch, cw = csd[first_conv].shape
+                if ch == h and cw == w:
+                    c1 = min(c1, cc1)
+                    state_dict[first_conv][:c1, :min(c2, cc2)] = csd[first_conv][:c1, :min(c2, cc2)]
+                    # 输入通道数大于原始3通道时，使用均值初始化
+                    if c2 > cc2:
+                        mean_weight = csd[first_conv].mean(1, keepdim=True).expand(-1, c2 - cc2, -1, -1)
+                        state_dict[first_conv][:c1, cc2:] = mean_weight[:c1, :]
+                        if verbose:
+                            LOGGER.info(f"Inflated first conv: in_channels {cc2} -> {c2} using mean init")
+                    self.load_state_dict({first_conv: state_dict[first_conv]}, strict=False)
+                    len_updated_csd += 1
+            if verbose:
+                LOGGER.info(f"Transferred {len_updated_csd}/{len(self.model.state_dict())} items from pretrained weights")
+        else:
+            # TODO: 双流结构读取预训练权重
+            pass
+
 
 # Functions ------------------------------------------------------------------------------------------------------------
 
