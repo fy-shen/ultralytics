@@ -6,7 +6,7 @@
 
 # Parameters
 nc: 1 # number of classes
-channels: 5
+channels: 6
 split_feature: True
 
 end2end: True # whether to use end-to-end mode

@@ -1322,13 +1322,10 @@ class Ensemble(torch.nn.ModuleList):
 
 
 class MotionDetectionModel(DetectionModel):
-    # TODO: 目前需要根据运动特征的数量手动修改通道数
     def __init__(self, cfg="yolo26n.yaml", ch=3, nc=None, verbose=True):
         cfg = cfg if isinstance(cfg, dict) else yaml_model_load(cfg)
         ch = cfg.get("channels", ch)
         self.split_feature = cfg.get("split_feature", False)
-        # if self.split_feature:
-        #     ch = 3
         super().__init__(cfg=cfg, ch=ch, nc=nc, verbose=verbose)
 
     def _predict_once(self, x, profile=False, visualize=False, embed=None):
@@ -1400,8 +1397,47 @@ class MotionDetectionModel(DetectionModel):
             if verbose:
                 LOGGER.info(f"Transferred {len_updated_csd}/{len(self.model.state_dict())} items from pretrained weights")
         else:
-            # TODO: 双流结构读取预训练权重
-            pass
+            # 当权重数量增加时认为是双流结构
+            if verbose:
+                LOGGER.info("Start load two stream pretrained weights ...")
+            model = model.float()
+            self.reload_state_dict(model.model[:11].state_dict(),  self.model[:11].state_dict())
+            self.reload_state_dict(model.model[:11].state_dict(),  self.model[11:22].state_dict(), "mean")
+            self.reload_state_dict(model.model[11:].state_dict(),  self.model[23:].state_dict(), "copy")
+
+    def reload_state_dict(self, da, db, mode="mean"):
+        res = {}
+        for (k1, v1), (k2, v2) in zip(da.items(), db.items()):
+            load = None
+            if v1.shape == v2.shape:
+                res[k2] = v1
+                load = 'same'
+            elif len(v1.shape) == len(v2.shape) == 4:
+                out1, in1, h1, w1 = v1.shape
+                out2, in2, h2, w2 = v2.shape
+                if out1 == out2 and h1 == h2 and w1 == w2:
+                    if mode == "copy":
+                        if in2 % in1 == 0:
+                            for i in range(in2 // in1):
+                                v2[:, in1*i:in1*(i+1), :, :] = v1
+                            load = 'div copy'
+                        elif 2*in1 > in2 > in1:
+                            v2[:, :in1, :, :] = v1
+                            v2[:, in1:, :, :] = v1[:, in1-in2:, :, :]
+                            load = 'loop copy'
+                    if mode == "mean":
+                        v2 = v1.mean(1, keepdim=True).expand(-1, in2, -1, -1)
+                        load = 'mean'
+                    res[k2] = v2
+
+            if load is None:
+                LOGGER.info(f"Load error {k1} -> {k2}, shape {tuple(v1.shape)} -> {tuple(v2.shape)}")
+            elif load == 'same':
+                # LOGGER.info(f"Load {k1} -> {k2}, same shape {tuple(v1.shape)}")
+                pass
+            else:
+                LOGGER.info(f"Load {k1} -> {k2}, {load} shape {tuple(v1.shape)} -> {tuple(v2.shape)}")
+        self.load_state_dict(res, strict=False)
 
 
 # Functions ------------------------------------------------------------------------------------------------------------
