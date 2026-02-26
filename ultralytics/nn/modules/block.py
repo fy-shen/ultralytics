@@ -52,6 +52,9 @@ __all__ = (
     "ResNetLayer",
     "SCDown",
     "TorchVision",
+    "C3k2List",
+    "WeightFuse",
+    "ChannelGateFuse",
 )
 
 
@@ -2065,3 +2068,71 @@ class RealNVP(nn.Module):
             self.float()
         z, log_det = self.backward_p(x)
         return self.prior.log_prob(z) + log_det
+
+
+class C3k2List(C3k2):
+    """Faster Implementation of CSP Bottleneck with 2 convolutions."""
+
+    def __init__(
+        self,
+        c1: int,
+        c2: int,
+        n: int = 1,
+        c3k: bool = False,
+        e: float = 0.5,
+        attn: bool = False,
+        g: int = 1,
+        shortcut: bool = True,
+    ):
+        """Initialize C3k2 module.
+
+        Args:
+            c1 (int): Input channels.
+            c2 (int): Output channels.
+            n (int): Number of blocks.
+            c3k (bool): Whether to use C3k blocks.
+            e (float): Expansion ratio.
+            attn (bool): Whether to use attention blocks.
+            g (int): Groups for convolutions.
+            shortcut (bool): Whether to use shortcut connections.
+        """
+        super().__init__(c1, c2, n, c3k, e, attn, g, shortcut)
+
+    def forward(self, x: list[torch.Tensor]) -> list[torch.Tensor]:
+        """Forward pass through C2f layer."""
+        res = []
+        for i in x:
+            y = list(self.cv1(i).chunk(2, 1))
+            y.extend(m(y[-1]) for m in self.m)
+            y = self.cv2(torch.cat(y, 1))
+            res.append(y)
+        return res
+
+
+class WeightFuse(nn.Module):
+    def __init__(self, alpha=0.5):
+        super().__init__()
+        self.alpha = nn.Parameter(torch.tensor(alpha))
+
+    def forward(self, x):
+        x1, x2 = x
+        a = torch.sigmoid(self.alpha)
+        return a * x1 + (1 - a) * x2
+
+
+class ChannelGateFuse(nn.Module):
+    def __init__(self, c, reduction=16):
+        super().__init__()
+        self.gate = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),          # [B, C, 1, 1]
+            nn.Conv2d(2 * c, c // reduction, 1, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(c // reduction, c, 1, bias=False),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        # x1, x2: [B, C, H, W]
+        x1, x2 = x
+        w = self.gate(torch.cat([x1, x2], dim=1))  # [B, C, 1, 1]
+        return w * x1 + (1 - w) * x2

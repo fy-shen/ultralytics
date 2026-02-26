@@ -24,6 +24,7 @@ __all__ = (
     "LightConv",
     "RepConv",
     "SpatialAttention",
+    "ConvList"
 )
 
 
@@ -667,3 +668,14 @@ class Index(nn.Module):
             (torch.Tensor): Selected tensor.
         """
         return x[self.index]
+
+
+class ConvList(Conv):
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, d=1, act=True):
+        super().__init__(c1, c2, k, s, p, g, d, act)
+
+    def forward(self, x):
+        return [self.act(self.bn(self.conv(i))) for i in x]
+
+    def forward_fuse(self, x):
+        return [self.act(self.conv(i)) for i in x]

@@ -72,6 +72,10 @@ from ultralytics.nn.modules import (
     YOLOESegment,
     YOLOESegment26,
     v10Detect,
+    ConvList,
+    C3k2List,
+    WeightFuse,
+    ChannelGateFuse,
 )
 from ultralytics.utils import DEFAULT_CFG_DICT, LOGGER, YAML, colorstr, emojis
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
@@ -1326,6 +1330,7 @@ class MotionDetectionModel(DetectionModel):
         cfg = cfg if isinstance(cfg, dict) else yaml_model_load(cfg)
         ch = cfg.get("channels", ch)
         self.split_feature = cfg.get("split_feature", False)
+        self.pretrain_mode = cfg.get("pretrain_mode", None)
         super().__init__(cfg=cfg, ch=ch, nc=nc, verbose=verbose)
 
     def _predict_once(self, x, profile=False, visualize=False, embed=None):
@@ -1340,22 +1345,24 @@ class MotionDetectionModel(DetectionModel):
         max_idx = max(embed)
 
         x_rgb = x[:, :3, ...]
-        x_motion = x[:, 3:, ...]
+        x_fea = x[:, 3:, ...]
         for m in self.model:
             if m.f != -1:  # if not from previous layer
                 if isinstance(m.f, str):
                     if m.f == "rgb":
-                        x = x_rgb
+                        x = x_rgb if m.i < 2 else y[-1][0]
                     elif m.f == "fea":
-                        x = x_motion
+                        x = x_fea if m.i < 2 else y[-2][1]
                     else:
                         raise ValueError(f"error input from {m.f}")
                 else:
                     x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
             if profile:
                 self._profile_one_layer(m, x, dt)
+            # print(m)
             x = m(x)  # run
             y.append(x if m.i in self.save else None)  # save output
+
             if visualize:
                 feature_visualization(x, m.type, m.i, save_dir=visualize)
             if m.i in embed:
@@ -1397,13 +1404,22 @@ class MotionDetectionModel(DetectionModel):
             if verbose:
                 LOGGER.info(f"Transferred {len_updated_csd}/{len(self.model.state_dict())} items from pretrained weights")
         else:
-            # 当权重数量增加时认为是双流结构
-            if verbose:
-                LOGGER.info("Start load two stream pretrained weights ...")
             model = model.float()
-            self.reload_state_dict(model.model[:11].state_dict(),  self.model[:11].state_dict())
-            self.reload_state_dict(model.model[:11].state_dict(),  self.model[11:22].state_dict(), "mean")
-            self.reload_state_dict(model.model[11:].state_dict(),  self.model[23:].state_dict(), "copy")
+            # 当权重数量增加时认为是双流结构
+            if self.pretrain_mode == "two-stream":
+                if verbose:
+                    LOGGER.info("Start load two stream pretrained weights ...")
+                self.reload_state_dict(model.model[:11].state_dict(),  self.model[:11].state_dict())
+                self.reload_state_dict(model.model[:11].state_dict(),  self.model[11:22].state_dict(), "mean")
+                self.reload_state_dict(model.model[11:].state_dict(),  self.model[23:].state_dict(), "copy")
+            if self.pretrain_mode == "fuse":
+                if verbose:
+                    LOGGER.info("Start load fuse pretrained weights ...")
+                self.reload_state_dict(model.model[:1].state_dict(), self.model[:1].state_dict())
+                self.reload_state_dict(model.model[:4].state_dict(), self.model[1:5].state_dict(), "mean")
+                self.reload_state_dict(model.model[3:5].state_dict(), self.model[5:7].state_dict())
+                self.reload_state_dict(model.model[4:5].state_dict(), self.model[7:8].state_dict())
+                self.reload_state_dict(model.model[5:].state_dict(), self.model[9:].state_dict())
 
     def reload_state_dict(self, da, db, mode="mean"):
         res = {}
@@ -1722,6 +1738,9 @@ def parse_model(d, ch, verbose=True):
             SCDown,
             C2fCIB,
             A2C2f,
+
+            ConvList,
+            C3k2List,
         }
     )
     repeat_modules = frozenset(  # modules with 'repeat' arguments
@@ -1741,6 +1760,8 @@ def parse_model(d, ch, verbose=True):
             C2fCIB,
             C2PSA,
             A2C2f,
+
+            C3k2List,
         }
     )
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
@@ -1760,11 +1781,13 @@ def parse_model(d, ch, verbose=True):
             # 修改输入维度判定逻辑
             if isinstance(f, str):
                 if f == "rgb":
-                    c1 = 3
+                    c1 = 3 if (i == 0 or i == 1) else ch[-1]
                 elif f == "fea":
-                    c1 = ch_input - 3
+                    c1 = ch_input - 3 if (i == 0 or i == 1) else ch[-2]
                 else:
                     raise ValueError(f"error input from {f}")
+            elif isinstance(f, list):
+                c1 = ch[f[-1]]
             else:
                 c1 = ch[f]
             c2 = args[0]
@@ -1779,7 +1802,7 @@ def parse_model(d, ch, verbose=True):
             if m in repeat_modules:
                 args.insert(2, n)  # number of repeats
                 n = 1
-            if m is C3k2:  # for M/L/X sizes
+            if m is C3k2 or C3k2List:  # for M/L/X sizes
                 legacy = False
                 if scale in "mlx":
                     args[3] = True
@@ -1839,6 +1862,8 @@ def parse_model(d, ch, verbose=True):
             c2 = args[0]
             c1 = ch[f]
             args = [*args[1:]]
+        elif m is WeightFuse:
+            args = [*args]
         else:
             c2 = ch[f]
 
@@ -1851,6 +1876,8 @@ def parse_model(d, ch, verbose=True):
         # 修改保存逻辑
         if not isinstance(f, str):
             save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
+        elif f == "rgb" and i > 1:
+            save.append(-1 % i)
         layers.append(m_)
         if i == 0:
             ch = []

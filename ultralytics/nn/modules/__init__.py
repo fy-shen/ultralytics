@@ -59,6 +59,9 @@ from .block import (
     ResNetLayer,
     SCDown,
     TorchVision,
+    C3k2List,
+    WeightFuse,
+    ChannelGateFuse,
 )
 from .conv import (
     CBAM,
@@ -75,6 +78,7 @@ from .conv import (
     LightConv,
     RepConv,
     SpatialAttention,
+    ConvList
 )
 from .head import (
     OBB,
@@ -187,4 +191,8 @@ __all__ = (
     "YOLOESegment",
     "YOLOESegment26",
     "v10Detect",
+    "ConvList",
+    "C3k2List",
+    "WeightFuse",
+    "ChannelGateFuse",
 )
