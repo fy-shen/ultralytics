@@ -1346,13 +1346,16 @@ class MotionDetectionModel(DetectionModel):
 
         x_rgb = x[:, :3, ...]
         x_fea = x[:, 3:, ...]
+        in_rgb, in_fea = True, True
         for m in self.model:
             if m.f != -1:  # if not from previous layer
                 if isinstance(m.f, str):
                     if m.f == "rgb":
-                        x = x_rgb if m.i < 2 else y[-1][0]
+                        x = x_rgb if in_rgb else y[-1][0]
+                        in_rgb = False
                     elif m.f == "fea":
-                        x = x_fea if m.i < 2 else y[-2][1]
+                        x = x_fea if in_fea else y[-2][1]
+                        in_fea = False
                     else:
                         raise ValueError(f"error input from {m.f}")
                 else:
@@ -1415,11 +1418,9 @@ class MotionDetectionModel(DetectionModel):
             if self.pretrain_mode == "fuse":
                 if verbose:
                     LOGGER.info("Start load fuse pretrained weights ...")
-                self.reload_state_dict(model.model[:1].state_dict(), self.model[:1].state_dict())
-                self.reload_state_dict(model.model[:4].state_dict(), self.model[1:5].state_dict(), "mean")
-                self.reload_state_dict(model.model[3:5].state_dict(), self.model[5:7].state_dict())
-                self.reload_state_dict(model.model[4:5].state_dict(), self.model[7:8].state_dict())
-                self.reload_state_dict(model.model[5:].state_dict(), self.model[9:].state_dict())
+                self.reload_state_dict(model.model[:5].state_dict(), self.model[:5].state_dict())
+                self.reload_state_dict(model.model[:5].state_dict(), self.model[5:10].state_dict(), "mean")
+                self.reload_state_dict(model.model[4:].state_dict(), self.model[11:].state_dict(), "copy")
 
     def reload_state_dict(self, da, db, mode="mean"):
         res = {}
@@ -1700,6 +1701,7 @@ def parse_model(d, ch, verbose=True):
     if verbose:
         LOGGER.info(f"\n{'':>3}{'from':>20}{'n':>3}{'params':>10}  {'module':<45}{'arguments':<30}")
     ch_input = ch
+    in_rgb, in_fea = True, True
     ch = [ch]
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
     base_modules = frozenset(
@@ -1765,6 +1767,7 @@ def parse_model(d, ch, verbose=True):
         }
     )
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
+
         m = (
             getattr(torch.nn, m[3:])
             if "nn." in m
@@ -1781,9 +1784,11 @@ def parse_model(d, ch, verbose=True):
             # 修改输入维度判定逻辑
             if isinstance(f, str):
                 if f == "rgb":
-                    c1 = 3 if (i == 0 or i == 1) else ch[-1]
+                    c1 = 3 if in_rgb else ch[-1]
+                    in_rgb = False
                 elif f == "fea":
-                    c1 = ch_input - 3 if (i == 0 or i == 1) else ch[-2]
+                    c1 = ch_input - 3 if in_fea else ch[-2]
+                    in_fea = False
                 else:
                     raise ValueError(f"error input from {f}")
             elif isinstance(f, list):
@@ -1864,6 +1869,9 @@ def parse_model(d, ch, verbose=True):
             args = [*args[1:]]
         elif m is WeightFuse:
             args = [*args]
+        elif m is ChannelGateFuse:
+            c1 = c2 = ch[f[-1]]
+            args = [c1, *args]
         else:
             c2 = ch[f]
 
