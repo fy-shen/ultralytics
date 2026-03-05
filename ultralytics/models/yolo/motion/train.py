@@ -1,10 +1,10 @@
-from typing import Optional
+from typing import Optional, Any
 
 from ..detect.train import DetectionTrainer
 
 from ultralytics.data import build_motion_dataset
 from ultralytics.utils.torch_utils import unwrap_model
-from ultralytics.utils import RANK
+from ultralytics.utils import DEFAULT_CFG, RANK
 from ultralytics.nn.tasks import MotionDetectionModel
 
 

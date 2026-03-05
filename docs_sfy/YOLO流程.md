@@ -16,7 +16,7 @@
  - [加载数据集参数](https://github.com/fy-shen/ultralytics/blob/main/ultralytics/engine/trainer.py#L652-L662)
 
  - [`trainer.train()`](https://github.com/fy-shen/ultralytics/blob/main/ultralytics/engine/trainer.py#L219)
-   - 非 DDP 模式 [`setup_train` 入口](https://github.com/fy-shen/ultralytics/blob/main/ultralytics/engine/trainer.py#L365)
+   - [`setup_train` 入口](https://github.com/fy-shen/ultralytics/blob/main/ultralytics/engine/trainer.py#L365)
    - [`setup_train` 主函数](https://github.com/fy-shen/ultralytics/blob/main/ultralytics/engine/trainer.py#L266)，
    训练配置的核心函数，涉及读取权重、freeze layers、AMP、Batchsize、Dataloader、Optimizer、Scheduler
 

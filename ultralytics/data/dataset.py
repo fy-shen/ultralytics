@@ -837,6 +837,11 @@ class ClassificationDataset:
 
 
 class MotionDataset(YOLODataset):
+    def __init__(self, *args, data: dict | None = None, task: str = "detect", **kwargs):
+        data["motion"] = kwargs["hyp"].motion
+        data["channels"] = 3 + len(kwargs["hyp"].motion)
+        super().__init__(*args, data=data, task=task, **kwargs)
+
     def load_image(self, i: int, rect_mode: bool = True) -> tuple[np.ndarray, tuple[int, int], tuple[int, int]]:
         f = self.im_files[i]
         im = imread(f, flags=self.cv2_flag)  # BGR
