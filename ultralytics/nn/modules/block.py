@@ -55,6 +55,9 @@ __all__ = (
     "C3k2List",
     "WeightFuse",
     "ChannelGateFuse",
+    "MotionGuideAttn",
+    "MotionCrossAttn",
+    "MotionSEFusion",
 )
 
 
@@ -2136,3 +2139,93 @@ class ChannelGateFuse(nn.Module):
         x1, x2 = x
         w = self.gate(torch.cat([x1, x2], dim=1))  # [B, C, 1, 1]
         return w * x1 + (1 - w) * x2
+
+
+class MotionGuideAttn(nn.Module):
+    def __init__(self, c_rgb, c_fea, split=False):
+        super().__init__()
+        self.split = split
+        self.encoder = nn.Sequential(
+            Conv(c_fea, c_rgb, 1, 1),
+            nn.Conv2d(c_rgb, c_rgb, 3, 1, 1),
+            nn.Sigmoid()
+        )
+        self.conv_rgb = nn.Identity()
+
+    def forward(self, x):
+        if self.split:
+            x_rgb = x[:, :3, ...]
+            x_fea = x[:, 3:, ...]
+        else:
+            x_rgb, x_fea = x
+        gate = self.encoder(x_fea)
+        x_rgb = self.conv_rgb(x_rgb)
+        return x_rgb * gate + x_rgb
+
+
+class MotionGuideFusion(MotionGuideAttn):
+    def __init__(self, c_rgb, c_fea, split=False):
+        super().__init__(c_rgb, c_fea, split)
+        self.split = split
+
+        hidden = max(c_rgb // 8, 4)
+        self.encoder = nn.Sequential(
+            Conv(c_fea, hidden, 3, 1),
+            nn.Conv2d(hidden, c_rgb, 1),
+            nn.Sigmoid()
+        )
+        self.conv_rgb = Conv(c_rgb, c_rgb, 3, 1)
+
+
+class MotionSEFusion(nn.Module):
+    def __init__(self, c_rgb, c_fea, reduction=8):
+        super().__init__()
+
+        c = c_rgb + c_fea
+        self.conv = Conv(c, c_rgb, 1, 1)
+        self.se = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(c_rgb, c_rgb // reduction, 1),
+            nn.ReLU(),
+            nn.Conv2d(c_rgb // reduction, c_rgb, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        x = torch.cat(x, 1)
+        x = self.conv(x)
+        w = self.se(x)
+        return x * w + x
+
+
+class MotionCrossAttn(nn.Module):
+
+    def __init__(self, c_rgb, c_fea, heads=4):
+        super().__init__()
+
+        self.heads = heads
+        self.scale = (c_rgb // heads) ** -0.5
+
+        self.q = nn.Conv2d(c_rgb, c_rgb, 1)
+        self.k = nn.Conv2d(c_fea, c_rgb, 1)
+        self.v = nn.Conv2d(c_fea, c_rgb, 1)
+
+        self.proj = nn.Conv2d(c_rgb, c_rgb, 1)
+
+    def forward(self, x):
+        x_rgb, x_fea = x
+
+        B, C, H, W = x_rgb.shape
+
+        q = self.q(x_rgb).reshape(B, self.heads, C // self.heads, H * W)
+        k = self.k(x_fea).reshape(B, self.heads, C // self.heads, H * W)
+        v = self.v(x_fea).reshape(B, self.heads, C // self.heads, H * W)
+
+        attn = torch.einsum("bhcn,bhcm->bhnm", q, k) * self.scale
+        attn = attn.softmax(-1)
+
+        out = torch.einsum("bhnm,bhcm->bhcn", attn, v)
+
+        out = out.reshape(B, C, H, W)
+
+        return x_rgb + self.proj(out)

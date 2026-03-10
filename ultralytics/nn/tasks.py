@@ -76,6 +76,10 @@ from ultralytics.nn.modules import (
     C3k2List,
     WeightFuse,
     ChannelGateFuse,
+    MotionGuideAttn,
+    MotionGuideFusion,
+    MotionCrossAttn,
+    MotionSEFusion,
 )
 from ultralytics.utils import DEFAULT_CFG_DICT, LOGGER, YAML, colorstr, emojis
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
@@ -1409,15 +1413,21 @@ class MotionDetectionModel(DetectionModel):
         else:
             model = model.float()
             # 当权重数量增加时认为是双流结构
-            if self.pretrain_mode == "two-stream":
+            if self.pretrain_mode == "twostream":
                 if verbose:
-                    LOGGER.info("Start load two stream pretrained weights ...")
+                    LOGGER.info(f"Start load {self.pretrain_mode} pretrained weights ...")
                 self.reload_state_dict(model.model[:11].state_dict(),  self.model[:11].state_dict())
                 self.reload_state_dict(model.model[:11].state_dict(),  self.model[11:22].state_dict(), "mean")
                 self.reload_state_dict(model.model[11:].state_dict(),  self.model[23:].state_dict(), "copy")
-            if self.pretrain_mode == "fuse":
+            if self.pretrain_mode == "p1fuse":
                 if verbose:
-                    LOGGER.info("Start load fuse pretrained weights ...")
+                    LOGGER.info(f"Start load {self.pretrain_mode} pretrained weights ...")
+                self.reload_state_dict(model.model[:1].state_dict(), self.model[:1].state_dict())
+                self.reload_state_dict(model.model[:1].state_dict(), self.model[1:2].state_dict(), "mean")
+                self.reload_state_dict(model.model[1:].state_dict(), self.model[3:].state_dict(), "copy")
+            if self.pretrain_mode == "p3fuse":
+                if verbose:
+                    LOGGER.info(f"Start load {self.pretrain_mode} pretrained weights ...")
                 self.reload_state_dict(model.model[:5].state_dict(), self.model[:5].state_dict())
                 self.reload_state_dict(model.model[:5].state_dict(), self.model[5:10].state_dict(), "mean")
                 self.reload_state_dict(model.model[4:].state_dict(), self.model[11:].state_dict(), "copy")
@@ -1872,6 +1882,10 @@ def parse_model(d, ch, verbose=True):
         elif m is ChannelGateFuse:
             c1 = c2 = ch[f[-1]]
             args = [c1, *args]
+        elif m in (MotionGuideAttn, MotionGuideFusion, MotionSEFusion, MotionCrossAttn):
+            args[0] = int(args[0] * width)
+            args[1] = int(args[1] * width)
+            c2 = args[0]
         else:
             c2 = ch[f]
 
@@ -1884,7 +1898,7 @@ def parse_model(d, ch, verbose=True):
         # 修改保存逻辑
         if not isinstance(f, str):
             save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
-        elif f == "rgb" and i > 1:
+        elif f in ("rgb", "fea") and i > 1:
             save.append(-1 % i)
         layers.append(m_)
         if i == 0:
@@ -1908,11 +1922,18 @@ def yaml_model_load(path):
         LOGGER.warning(f"Ultralytics YOLO P6 models now use -p6 suffix. Renaming {path.stem} to {new_stem}.")
         path = path.with_name(new_stem + path.suffix)
 
-    unified_path = re.sub(r"(\d+)([nslmx])(.+)?$", r"\1\3", str(path))  # i.e. yolov8x.yaml -> yolov8.yaml
+    # unified_path = re.sub(r"(\d+)([nslmx])(.+)?$", r"\1\3", str(path))  # i.e. yolov8x.yaml -> yolov8.yaml
+    # 改为去掉scale和channel，i.e. yolov8<scale>-<channel>.yaml
+    stem = re.sub(r"(\d+)[nslmx](.*?)(?:-\d+)?$", r"\1\2", path.stem)
+    unified_path = path.parent / (stem + path.suffix)
     yaml_file = check_yaml(unified_path, hard=False) or check_yaml(path)
     d = YAML.load(yaml_file)  # model dict
     d["scale"] = guess_model_scale(path)
     d["yaml_file"] = str(path)
+    # 新增channel，默认为3
+    c = re.search(r"-(\d+)$", path.stem)
+    c = c.group(1) if c else 3
+    d["channels"] = int(c)
     return d
 
 

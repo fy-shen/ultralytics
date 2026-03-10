@@ -62,6 +62,10 @@ from .block import (
     C3k2List,
     WeightFuse,
     ChannelGateFuse,
+    MotionGuideAttn,
+    MotionGuideFusion,
+    MotionCrossAttn,
+    MotionSEFusion,
 )
 from .conv import (
     CBAM,
@@ -195,4 +199,8 @@ __all__ = (
     "C3k2List",
     "WeightFuse",
     "ChannelGateFuse",
+    "MotionGuideAttn",
+    "MotionGuideFusion",
+    "MotionCrossAttn",
+    "MotionSEFusion",
 )
