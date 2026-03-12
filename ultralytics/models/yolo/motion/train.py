@@ -1,7 +1,9 @@
 from typing import Optional, Any
+from copy import copy
 
 from ..detect.train import DetectionTrainer
 
+from ultralytics.models import yolo
 from ultralytics.data import build_motion_dataset
 from ultralytics.utils.torch_utils import unwrap_model
 from ultralytics.utils import DEFAULT_CFG, RANK
@@ -38,3 +40,10 @@ class MotionTrainer(DetectionTrainer):
         if weights:
             model.load(weights)
         return model
+
+    def get_validator(self):
+        """Return a DetectionValidator for YOLO model validation."""
+        self.loss_names = "box_loss", "cls_loss", "dfl_loss"
+        return yolo.motion.MotionValidator(
+            self.test_loader, save_dir=self.save_dir, args=copy(self.args), _callbacks=self.callbacks
+        )
