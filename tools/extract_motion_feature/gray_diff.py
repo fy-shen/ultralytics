@@ -151,7 +151,7 @@ if __name__ == "__main__":
         for video in sorted(os.listdir(args.video_dir)):
             video_path = os.path.join(args.video_dir, video)
 
-            if not video_path.lower().endswith((".mp4", ".avi", ".mov", ".mkv")):
+            if not video_path.lower().endswith((".mp4", ".avi", ".mov", ".mkv", "mpg")):
                 continue
 
             process_video(video_path, args.alpha)
