@@ -1,0 +1,10 @@
+
+path: /app/SFY/dynamic_yolo/datasets/drone_bird
+train: train.txt
+val: val.txt
+test:
+
+# Classes
+names:
+  0: bird
+
