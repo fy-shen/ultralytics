@@ -29,7 +29,7 @@ def main():
             drop_idx = img.idx
         frame_idx = img.idx - drop_idx
         # 标签路径
-        label_fn = f"{loader.tasks[task_id]['name']}_{frame_idx:06}.txt"
+        label_fn = f"{loader.tasks[task_id]['source'].split('.')[0]}_{frame_idx:06}.txt"
         label_path = os.path.join(label_dir, label_fn)
 
         for box in img.boxes:
