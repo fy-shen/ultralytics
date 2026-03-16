@@ -193,7 +193,9 @@ class BaseValidator:
             model.eval()
             if self.args.compile:
                 model = attempt_compile(model, device=self.device)
-            model.warmup(imgsz=(1 if pt else self.args.batch, self.data["channels"]+len(self.args.motion), imgsz, imgsz))  # warmup
+            # 在 final val 时会重新加载数据参数导致 data["channels"]=3，但是在正常 val model 时 data["channels"]=3+motion
+            channel = self.data["channels"]+len(self.args.motion) if self.data["channels"] <= 3 else self.data["channels"]
+            model.warmup(imgsz=(1 if pt else self.args.batch, channel, imgsz, imgsz))  # warmup
 
         self.run_callbacks("on_val_start")
         dt = (
