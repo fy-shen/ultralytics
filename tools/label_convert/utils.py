@@ -33,7 +33,17 @@ class CVATBox:
         xtl, ytl, xbr, ybr = map(
             float, [box.attrib['xtl'], box.attrib['ytl'], box.attrib['xbr'], box.attrib['ybr']]
         )
-        self.x = round((xtl + xbr) / 2 / width, 6)
-        self.y = round((ytl + ybr) / 2 / height, 6)
-        self.w = round(abs(xbr - xtl) / width, 6)
-        self.h = round(abs(ybr - ytl) / height, 6)
+        self.xtl = xtl
+        self.ytl = ytl
+        self.xbr = xbr
+        self.ybr = ybr
+
+        self.x = (xtl + xbr) / 2
+        self.y = (ytl + ybr) / 2
+        self.w = abs(xbr - xtl)
+        self.h = abs(ybr - ytl)
+
+        self.xn = self.x / width
+        self.yn = self.y / height
+        self.wn = self.w / width
+        self.hn = self.h / height

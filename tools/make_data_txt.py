@@ -40,16 +40,16 @@ def write_list(file_path, items):
 # 自动划分逻辑
 # ===============================
 def split_by_video(images, val_ratio, dataset_root):
-    """
-    按视频划分
-    """
     video_dict = {}
 
     for img in images:
         video = img.stem.rsplit("_", 1)[0]
         video_dict.setdefault(video, []).append(img)
 
-    videos = list(video_dict.keys())
+    for v in video_dict:
+        video_dict[v] = sorted(video_dict[v])
+
+    videos = sorted(video_dict.keys())
     random.shuffle(videos)
 
     val_video_num = int(len(videos) * val_ratio)
@@ -101,10 +101,10 @@ def build_txt(dataset_root, split, feature_dirs):
 def auto_split(dataset_root, feature_dirs, val_ratio, video_pattern):
     image_dir = dataset_root / "images"
 
-    images = [
+    images = sorted([
         p for p in image_dir.iterdir()
         if p.suffix.lower() in IMAGE_EXTS and valid_image(p, dataset_root, None, feature_dirs)
-    ]
+    ])
 
     if len(images) == 0:
         print("[ERROR] no images found")
