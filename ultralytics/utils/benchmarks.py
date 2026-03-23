@@ -121,6 +121,10 @@ def benchmark(
             # Checks
             if format == "pb":
                 assert model.task != "obb", "TensorFlow GraphDef not supported for OBB task"
+            elif format == "tfjs":
+                # tensorflowjs pulls in tensorflow-decision-forests which requires protobuf>=6,
+                # but tensorflow<=2.19 requires protobuf<6, causing an irreconcilable import error
+                assert False, "TF.js export disabled due to protobuf version conflict in tensorflowjs"
             elif format == "edgetpu":
                 assert LINUX and not ARM64, "Edge TPU export only supported on non-aarch64 Linux"
             elif format in {"coreml", "tfjs"}:
@@ -171,7 +175,6 @@ def benchmark(
 
             # Predict
             assert model.task != "pose" or format != "pb", "GraphDef Pose inference is not supported"
-            assert model.task != "pose" or format != "executorch", "ExecuTorch Pose inference is not supported"
             assert format not in {"edgetpu", "tfjs"}, "inference not supported"
             assert format != "coreml" or platform.system() == "Darwin", "inference only supported on macOS>=10.13"
             exported_model.predict(ASSETS / "bus.jpg", imgsz=imgsz, device=device, half=half, verbose=False)
