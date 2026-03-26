@@ -122,7 +122,6 @@ def main():
             if b.w <= 0 or b.h <= 0:
                 continue
 
-            # cls = 0
             cls = CLASS[b.label]
             boxes.append((cls, b.x, b.y, b.w, b.h))
 

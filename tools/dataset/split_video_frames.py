@@ -4,7 +4,6 @@ import argparse
 
 
 def split_video(in_video_path, out_image_path):
-    """ split video"""
     videos = os.listdir(in_video_path)
     for video_name in videos:
         print(video_name)
