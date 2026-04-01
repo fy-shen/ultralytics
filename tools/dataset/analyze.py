@@ -10,7 +10,7 @@ import matplotlib
 
 matplotlib.use('Agg')
 
-from tools.dataset import get_image_size
+from tools.dataset import get_image_size, img_to_label_path
 from ultralytics.data.utils import check_det_dataset
 
 # ===============================
@@ -60,10 +60,6 @@ def get_bin_labels(bins):
             else:
                 bin_labels.append(f"{int(low)}-{int(high)}")
     return bin_labels
-
-
-def img_to_label_path(img_path: Path):
-    return Path(str(img_path).replace("/images/", "/labels/")).with_suffix(".txt")
 
 
 def load_labels(label_path):
@@ -158,7 +154,7 @@ class Plotter:
             values = [data_dict[cls].get(b, 0) for b in x_labels]
 
             # width=1 + align='edge' -> 无缝直方图
-            bars = ax.bar(x_edges, values, width=1.0, align='edge', edgecolor='black')
+            ax.bar(x_edges, values, width=1.0, align='edge', edgecolor='black')
 
             # 数值标注
             for xi, v in zip(x_edges, values):

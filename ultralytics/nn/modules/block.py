@@ -56,6 +56,7 @@ __all__ = (
     "WeightFuse",
     "ChannelGateFuse",
     "MotionGuideAttn",
+    "MotionGuideFusion",
     "MotionCrossAttn",
     "MotionSEFusion",
 )
