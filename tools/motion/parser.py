@@ -7,6 +7,8 @@ from tools.motion import MOTION_TYPE_SPECS
 def add_source_args(group):
     group.add_argument("--video", type=Path, default=None, help="Path to a single video file")
     group.add_argument("--video-dir", type=Path, default=None, help="Directory containing multiple videos")
+    group.add_argument("--workers", type=int, default=1, help="Parallel workers for multiple videos")
+    group.add_argument("--no-progress", action="store_true", help="Disable tqdm progress bars")
 
 
 def add_type_args(group, motion_type):
@@ -100,6 +102,8 @@ def format_motion_args(args):
         "[source args]",
         f"video={getattr(args, 'video', None)}",
         f"video_dir={getattr(args, 'video_dir', None)}",
+        f"workers={getattr(args, 'workers', 1)}",
+        f"no_progress={getattr(args, 'no_progress', False)}",
     ]
     if motion_types:
         lines.append("")

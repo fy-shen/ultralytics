@@ -3,6 +3,8 @@ import numpy as np
 from pathlib import Path
 from collections import OrderedDict
 from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from queue import Queue
 from tqdm import tqdm
 
 
@@ -279,7 +281,16 @@ class ExtractPipeline:
         return aligned_outputs
 
 
-def save_motion_features(video_path, feature_names, save_dirs=None, source_token="videos", **kwargs):
+def save_motion_features(
+    video_path,
+    feature_names,
+    save_dirs=None,
+    source_token="videos",
+    progress=True,
+    progress_position=None,
+    progress_leave=True,
+    **kwargs,
+):
     video_path = Path(video_path)
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
@@ -301,7 +312,14 @@ def save_motion_features(video_path, feature_names, save_dirs=None, source_token
     if total_frames <= 0:
         total_frames = None
 
-    with tqdm(total=total_frames, desc=f"Extract {video_name}", unit="frame") as pbar:
+    with tqdm(
+        total=total_frames,
+        desc=f"Extract {video_name[:40]:<40}",
+        unit="frame",
+        disable=not progress,
+        position=progress_position,
+        leave=progress_leave,
+    ) as pbar:
         while True:
             ret, frame = cap.read()
             if not ret:
@@ -320,7 +338,7 @@ def save_motion_features(video_path, feature_names, save_dirs=None, source_token
                 saved_count += 1
             frame_idx += 1
             pbar.update(1)
-            if frame_idx % 30 == 0:
+            if progress and frame_idx % 30 == 0:
                 pbar.set_postfix(saved=saved_count, pending=len(pending))
     cap.release()
     return saved_count
@@ -330,10 +348,73 @@ def run_motion_extraction(args, motion_types):
     from tools.motion.parser import get_motion_kwargs_from_args
 
     motion_kwargs, feature_names = get_motion_kwargs_from_args(args, motion_types)
-    for video_path in iter_video_paths(video=args.video, video_dir=args.video_dir):
-        print(f"[INFO] Start extract {video_path.name} motion feature maps ...")
-        save_motion_features(
+    video_paths = iter_video_paths(video=args.video, video_dir=args.video_dir)
+    if not video_paths:
+        print("[WARN] No videos found.")
+        return
+
+    workers = max(1, min(int(getattr(args, "workers", 1)), len(video_paths)))
+    no_progress = bool(getattr(args, "no_progress", False))
+
+    def _task(video_path, position):
+        saved = save_motion_features(
             video_path,
             feature_names=feature_names,
+            progress=not no_progress,
+            progress_position=position,
+            progress_leave=False if workers > 1 else True,
             **motion_kwargs,
         )
+        return video_path, saved
+
+    if workers == 1:
+        for video_path in video_paths:
+            print(f"[INFO] Start extract {video_path.name} motion feature maps ...")
+            _, saved = _task(video_path, 0)
+            print(f"[DONE] {video_path.name}: saved={saved}")
+        return
+
+    print(f"[INFO] Parallel extraction enabled: workers={workers}")
+    position_pool = Queue()
+    for i in range(workers):
+        position_pool.put(i + 1)  # 0 留给 overall 进度条
+
+    results = []
+    errors = []
+    overall = tqdm(
+        total=len(video_paths),
+        desc="Extract videos",
+        unit="video",
+        position=0,
+        disable=no_progress,
+    )
+
+    def _wrapped(video_path):
+        position = position_pool.get()
+        try:
+            return _task(video_path, position)
+        finally:
+            position_pool.put(position)
+
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futures = {ex.submit(_wrapped, video_path): video_path for video_path in video_paths}
+        for future in as_completed(futures):
+            video_path = futures[future]
+            try:
+                item = future.result()
+                results.append(item)
+                msg = f"[DONE] {video_path.name}: saved={item[1]}"
+            except Exception as exc:  # noqa: BLE001
+                errors.append((video_path, exc))
+                msg = f"[ERROR] {video_path.name}: {type(exc).__name__}: {exc}"
+            if no_progress:
+                print(msg)
+            else:
+                tqdm.write(msg)
+            overall.update(1)
+    overall.close()
+
+    if errors:
+        details = "; ".join(f"{p.name}: {type(e).__name__}: {e}" for p, e in errors[:5])
+        more = f" (+{len(errors) - 5} more)" if len(errors) > 5 else ""
+        raise RuntimeError(f"{len(errors)} extraction task(s) failed: {details}{more}")

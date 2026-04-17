@@ -1,4 +1,4 @@
-VIDEO_SUFFIXES = (".mp4", ".avi", ".mov", ".mkv", ".mpg", ".mpeg")
+VIDEO_SUFFIXES = (".mp4", ".avi", ".mov", ".mkv", ".mpg", ".mpeg", ".flv")
 
 from tools.motion.extractor import FEATURE_EXTRACTOR_REGISTRY, build_motion_type_specs
 
