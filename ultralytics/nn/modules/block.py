@@ -59,6 +59,7 @@ __all__ = (
     "MotionGuideFusion",
     "MotionCrossAttn",
     "MotionSEFusion",
+    "MotionGuideResFusion",
 )
 
 
@@ -152,15 +153,15 @@ class HGBlock(nn.Module):
     """
 
     def __init__(
-        self,
-        c1: int,
-        cm: int,
-        c2: int,
-        k: int = 3,
-        n: int = 6,
-        lightconv: bool = False,
-        shortcut: bool = False,
-        act: nn.Module = nn.ReLU(),
+            self,
+            c1: int,
+            cm: int,
+            c2: int,
+            k: int = 3,
+            n: int = 6,
+            lightconv: bool = False,
+            shortcut: bool = False,
+            act: nn.Module = nn.ReLU(),
     ):
         """Initialize HGBlock with specified parameters.
 
@@ -465,7 +466,7 @@ class Bottleneck(nn.Module):
     """Standard bottleneck."""
 
     def __init__(
-        self, c1: int, c2: int, shortcut: bool = True, g: int = 1, k: tuple[int, int] = (3, 3), e: float = 0.5
+            self, c1: int, c2: int, shortcut: bool = True, g: int = 1, k: tuple[int, int] = (3, 3), e: float = 0.5
     ):
         """Initialize a standard bottleneck module.
 
@@ -616,7 +617,7 @@ class MaxSigmoidAttnBlock(nn.Module):
 
         aw = torch.einsum("bmchw,bnmc->bmhwn", embed, guide)
         aw = aw.max(dim=-1)[0]
-        aw = aw / (self.hc**0.5)
+        aw = aw / (self.hc ** 0.5)
         aw = aw + self.bias[None, :, None, None]
         aw = aw.sigmoid() * self.scale
 
@@ -630,16 +631,16 @@ class C2fAttn(nn.Module):
     """C2f module with an additional attn module."""
 
     def __init__(
-        self,
-        c1: int,
-        c2: int,
-        n: int = 1,
-        ec: int = 128,
-        nh: int = 1,
-        gc: int = 512,
-        shortcut: bool = False,
-        g: int = 1,
-        e: float = 0.5,
+            self,
+            c1: int,
+            c2: int,
+            n: int = 1,
+            ec: int = 128,
+            nh: int = 1,
+            gc: int = 512,
+            shortcut: bool = False,
+            g: int = 1,
+            e: float = 0.5,
     ):
         """Initialize C2f module with attention mechanism.
 
@@ -696,7 +697,7 @@ class ImagePoolingAttn(nn.Module):
     """ImagePoolingAttn: Enhance the text embeddings with image-aware information."""
 
     def __init__(
-        self, ec: int = 256, ch: tuple[int, ...] = (), ct: int = 512, nh: int = 8, k: int = 3, scale: bool = False
+            self, ec: int = 256, ch: tuple[int, ...] = (), ct: int = 512, nh: int = 8, k: int = 3, scale: bool = False
     ):
         """Initialize ImagePoolingAttn module.
 
@@ -736,7 +737,7 @@ class ImagePoolingAttn(nn.Module):
         """
         bs = x[0].shape[0]
         assert len(x) == self.nf
-        num_patches = self.k**2
+        num_patches = self.k ** 2
         x = [pool(proj(x)).view(bs, -1, num_patches) for (x, proj, pool) in zip(x, self.projections, self.im_pools)]
         x = torch.cat(x, dim=-1).transpose(1, 2)
         q = self.query(text)
@@ -749,7 +750,7 @@ class ImagePoolingAttn(nn.Module):
         v = v.reshape(bs, -1, self.nh, self.hc)
 
         aw = torch.einsum("bnmc,bkmc->bmnk", q, k)
-        aw = aw / (self.hc**0.5)
+        aw = aw / (self.hc ** 0.5)
         aw = F.softmax(aw, dim=-1)
 
         x = torch.einsum("bmnk,bkmc->bnmc", aw, v)
@@ -836,7 +837,7 @@ class RepBottleneck(Bottleneck):
     """Rep bottleneck."""
 
     def __init__(
-        self, c1: int, c2: int, shortcut: bool = True, g: int = 1, k: tuple[int, int] = (3, 3), e: float = 0.5
+            self, c1: int, c2: int, shortcut: bool = True, g: int = 1, k: tuple[int, int] = (3, 3), e: float = 0.5
     ):
         """Initialize RepBottleneck.
 
@@ -1077,15 +1078,15 @@ class C3k2(C2f):
     """Faster Implementation of CSP Bottleneck with 2 convolutions."""
 
     def __init__(
-        self,
-        c1: int,
-        c2: int,
-        n: int = 1,
-        c3k: bool = False,
-        e: float = 0.5,
-        attn: bool = False,
-        g: int = 1,
-        shortcut: bool = True,
+            self,
+            c1: int,
+            c2: int,
+            n: int = 1,
+            c3k: bool = False,
+            e: float = 0.5,
+            attn: bool = False,
+            g: int = 1,
+            shortcut: bool = True,
     ):
         """Initialize C3k2 module.
 
@@ -1258,7 +1259,7 @@ class C2fCIB(C2f):
     """
 
     def __init__(
-        self, c1: int, c2: int, n: int = 1, shortcut: bool = False, lk: bool = False, g: int = 1, e: float = 0.5
+            self, c1: int, c2: int, n: int = 1, shortcut: bool = False, lk: bool = False, g: int = 1, e: float = 0.5
     ):
         """Initialize C2fCIB module.
 
@@ -1305,7 +1306,7 @@ class Attention(nn.Module):
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
         self.key_dim = int(self.head_dim * attn_ratio)
-        self.scale = self.key_dim**-0.5
+        self.scale = self.key_dim ** -0.5
         nh_kd = self.key_dim * num_heads
         h = dim + nh_kd * 2
         self.qkv = Conv(dim, h, 1, act=False)
@@ -1600,7 +1601,7 @@ class TorchVision(nn.Module):
     """
 
     def __init__(
-        self, model: str, weights: str = "DEFAULT", unwrap: bool = True, truncate: int = 2, split: bool = False
+            self, model: str, weights: str = "DEFAULT", unwrap: bool = True, truncate: int = 2, split: bool = False
     ):
         """Load the model and weights from torchvision.
 
@@ -1710,7 +1711,7 @@ class AAttn(nn.Module):
             .permute(0, 2, 3, 1)
             .split([self.head_dim, self.head_dim, self.head_dim], dim=2)
         )
-        attn = (q.transpose(-2, -1) @ k) * (self.head_dim**-0.5)
+        attn = (q.transpose(-2, -1) @ k) * (self.head_dim ** -0.5)
         attn = attn.softmax(dim=-1)
         x = v @ attn.transpose(-2, -1)
         x = x.permute(0, 3, 1, 2)
@@ -1817,17 +1818,17 @@ class A2C2f(nn.Module):
     """
 
     def __init__(
-        self,
-        c1: int,
-        c2: int,
-        n: int = 1,
-        a2: bool = True,
-        area: int = 1,
-        residual: bool = False,
-        mlp_ratio: float = 2.0,
-        e: float = 0.5,
-        g: int = 1,
-        shortcut: bool = True,
+            self,
+            c1: int,
+            c2: int,
+            n: int = 1,
+            a2: bool = True,
+            area: int = 1,
+            residual: bool = False,
+            mlp_ratio: float = 2.0,
+            e: float = 0.5,
+            g: int = 1,
+            shortcut: bool = True,
     ):
         """Initialize Area-Attention C2f module.
 
@@ -2078,15 +2079,15 @@ class C3k2List(C3k2):
     """Faster Implementation of CSP Bottleneck with 2 convolutions."""
 
     def __init__(
-        self,
-        c1: int,
-        c2: int,
-        n: int = 1,
-        c3k: bool = False,
-        e: float = 0.5,
-        attn: bool = False,
-        g: int = 1,
-        shortcut: bool = True,
+            self,
+            c1: int,
+            c2: int,
+            n: int = 1,
+            c3k: bool = False,
+            e: float = 0.5,
+            attn: bool = False,
+            g: int = 1,
+            shortcut: bool = True,
     ):
         """Initialize C3k2 module.
 
@@ -2128,7 +2129,7 @@ class ChannelGateFuse(nn.Module):
     def __init__(self, c, reduction=16):
         super().__init__()
         self.gate = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),          # [B, C, 1, 1]
+            nn.AdaptiveAvgPool2d(1),  # [B, C, 1, 1]
             nn.Conv2d(2 * c, c // reduction, 1, bias=False),
             nn.ReLU(inplace=True),
             nn.Conv2d(c // reduction, c, 1, bias=False),
@@ -2197,6 +2198,34 @@ class MotionSEFusion(nn.Module):
         x = self.conv(x)
         w = self.se(x)
         return x * w + x
+
+
+class MotionGuideResFusion(nn.Module):
+    def __init__(self, c_rgb, c_fea, reduction=8):
+        super().__init__()
+        hidden = max(c_rgb // reduction, 64)
+        self.proj_rgb = nn.Conv2d(c_rgb, hidden, 1, 1, 0)
+        self.proj_fea = nn.Sequential(
+            Conv(c_fea, hidden, 3, 1),
+            nn.Conv2d(hidden, hidden, 1, 1, 0)
+        )
+        self.gate = nn.Sequential(
+            Conv(hidden * 2, hidden, 3, 1),
+            nn.Conv2d(hidden, 1, 1, 1, 0)
+        )
+        self.delta = nn.Sequential(
+            Conv(hidden * 2, hidden, 3, 1),
+            nn.Conv2d(hidden, c_rgb, 1, 1, 0)
+        )
+        self.alpha = nn.Parameter(torch.zeros(1))
+
+    def forward(self, x):
+        x_rgb, x_fea = x
+
+        f = torch.cat([self.proj_rgb(x_rgb), self.proj_fea(x_fea)], dim=1)
+        gate = 2 * torch.sigmoid(self.gate(f)) - 1
+        delta = self.delta(f)
+        return x_rgb + self.alpha * gate * delta
 
 
 class MotionCrossAttn(nn.Module):

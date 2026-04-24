@@ -55,7 +55,7 @@ def load_yolo_labels(path, img_w, img_h):
     return cls, boxes
 
 
-def match_gt(gt_cls, gt_boxes, pred_cls, pred_boxes, iou_thr):
+def match_gt(gt_cls, gt_boxes, pred_cls, pred_boxes, iou_thr, single_cls=False):
     if len(gt_boxes) == 0:
         return []
 
@@ -77,8 +77,9 @@ def match_gt(gt_cls, gt_boxes, pred_cls, pred_boxes, iou_thr):
         for j in range(len(pred_boxes)):
             if j in used_pred:
                 continue
-            if gt_cls[i] != pred_cls[j]:
-                continue
+            if not single_cls:
+                if gt_cls[i] != pred_cls[j]:
+                    continue
 
             if ious[i, j] > best_iou:
                 best_iou = ious[i, j]
@@ -226,7 +227,7 @@ def draw_hist_per_class(
 
 
 def process_one_image(args):
-    img_path, pred1_dir, pred2_dir, iou = args
+    img_path, pred1_dir, pred2_dir, iou, single_cls = args
 
     gt_path = img_to_label_path(img_path)
     if not gt_path.exists():
@@ -238,8 +239,8 @@ def process_one_image(args):
     pred1_cls, pred1_boxes = load_yolo_labels(pred1_dir / gt_path.name, img_w, img_h)
     pred2_cls, pred2_boxes = load_yolo_labels(pred2_dir / gt_path.name, img_w, img_h)
 
-    matched_a = match_gt(gt_cls, gt_boxes, pred1_cls, pred1_boxes, iou)
-    matched_b = match_gt(gt_cls, gt_boxes, pred2_cls, pred2_boxes, iou)
+    matched_a = match_gt(gt_cls, gt_boxes, pred1_cls, pred1_boxes, iou, single_cls)
+    matched_b = match_gt(gt_cls, gt_boxes, pred2_cls, pred2_boxes, iou, single_cls)
 
     diff_ab = defaultdict(list)
     diff_ba = defaultdict(list)
@@ -290,7 +291,7 @@ def main():
     diff_sizes_ba = defaultdict(list)
     total_gt_per_class = defaultdict(int)
 
-    tasks = [(img_path, args.pred1, args.pred2, args.iou) for img_path in img_paths]
+    tasks = [(img_path, args.pred1, args.pred2, args.iou, args.single_cls) for img_path in img_paths]
     with Pool(processes=os.cpu_count()) as pool:
         results = list(tqdm(pool.imap(
             process_one_image, tasks, chunksize=max(8, len(tasks) // (os.cpu_count() * 4))), total=len(tasks)
@@ -333,6 +334,7 @@ def parse_args():
     parser.add_argument("--split", type=str, default='val', help="train / val / test")
     parser.add_argument("--iou", type=float, default=0.5)
     parser.add_argument("--save-img", action="store_true")
+    parser.add_argument("--single-cls", action="store_true")
     return parser.parse_args()
 
 

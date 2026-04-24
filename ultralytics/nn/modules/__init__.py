@@ -66,6 +66,7 @@ from .block import (
     MotionGuideFusion,
     MotionCrossAttn,
     MotionSEFusion,
+    MotionGuideResFusion,
 )
 from .conv import (
     CBAM,
@@ -203,4 +204,5 @@ __all__ = (
     "MotionGuideFusion",
     "MotionCrossAttn",
     "MotionSEFusion",
+    "MotionGuideResFusion",
 )

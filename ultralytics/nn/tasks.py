@@ -80,6 +80,7 @@ from ultralytics.nn.modules import (
     MotionGuideFusion,
     MotionCrossAttn,
     MotionSEFusion,
+    MotionGuideResFusion,
 )
 from ultralytics.utils import DEFAULT_CFG_DICT, LOGGER, WINDOWS, YAML, colorstr, emojis
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
@@ -1348,17 +1349,17 @@ class MotionDetectionModel(DetectionModel):
         embed = frozenset(embed) if embed is not None else {-1}
         max_idx = max(embed)
 
-        x_rgb = x[:, :3, ...]
-        x_fea = x[:, 3:, ...]
+        self.x_rgb = x[:, :3, ...]
+        self.x_fea = x[:, 3:, ...]
         in_rgb, in_fea = True, True
         for m in self.model:
             if m.f != -1:  # if not from previous layer
                 if isinstance(m.f, str):
                     if m.f == "rgb":
-                        x = x_rgb if in_rgb else y[-1][0]
+                        x = self.x_rgb if in_rgb else y[-1][0]
                         in_rgb = False
                     elif m.f == "fea":
-                        x = x_fea if in_fea else y[-2][1]
+                        x = self.x_fea if in_fea else y[-2][1]
                         in_fea = False
                     else:
                         raise ValueError(f"error input from {m.f}")
@@ -1412,25 +1413,25 @@ class MotionDetectionModel(DetectionModel):
                 LOGGER.info(f"Transferred {len_updated_csd}/{len(self.model.state_dict())} items from pretrained weights")
         else:
             model = model.float()
+            if verbose:
+                LOGGER.info(f"Start load {self.pretrain_mode} pretrained weights ...")
             # 当权重数量增加时认为是双流结构
             if self.pretrain_mode == "twostream":
-                if verbose:
-                    LOGGER.info(f"Start load {self.pretrain_mode} pretrained weights ...")
                 self.reload_state_dict(model.model[:11].state_dict(),  self.model[:11].state_dict())
                 self.reload_state_dict(model.model[:11].state_dict(),  self.model[11:22].state_dict(), "mean")
                 self.reload_state_dict(model.model[11:].state_dict(),  self.model[23:].state_dict(), "copy")
             if self.pretrain_mode == "p1fuse":
-                if verbose:
-                    LOGGER.info(f"Start load {self.pretrain_mode} pretrained weights ...")
                 self.reload_state_dict(model.model[:1].state_dict(), self.model[:1].state_dict())
                 self.reload_state_dict(model.model[:1].state_dict(), self.model[1:2].state_dict(), "mean")
                 self.reload_state_dict(model.model[1:].state_dict(), self.model[3:].state_dict(), "copy")
             if self.pretrain_mode == "p3fuse":
-                if verbose:
-                    LOGGER.info(f"Start load {self.pretrain_mode} pretrained weights ...")
                 self.reload_state_dict(model.model[:5].state_dict(), self.model[:5].state_dict())
                 self.reload_state_dict(model.model[:5].state_dict(), self.model[5:10].state_dict(), "mean")
                 self.reload_state_dict(model.model[4:].state_dict(), self.model[11:].state_dict(), "copy")
+            if self.pretrain_mode == "np3fuse":
+                self.reload_state_dict(model.model[:11].state_dict(), self.model[:11].state_dict())
+                self.reload_state_dict(model.model[11:17].state_dict(), self.model[14:20].state_dict())
+                self.reload_state_dict(model.model[17:].state_dict(), self.model[21:].state_dict())
 
     def reload_state_dict(self, da, db, mode="mean"):
         res = {}
@@ -1888,7 +1889,7 @@ def parse_model(d, ch, verbose=True):
         elif m is ChannelGateFuse:
             c1 = c2 = ch[f[-1]]
             args = [c1, *args]
-        elif m in (MotionGuideAttn, MotionGuideFusion, MotionSEFusion, MotionCrossAttn):
+        elif m in (MotionGuideAttn, MotionGuideFusion, MotionSEFusion, MotionCrossAttn, MotionGuideResFusion):
             args[0] = int(args[0] * width)
             args[1] = int(args[1] * width)
             c2 = args[0]
