@@ -98,6 +98,179 @@ class GrayDiffExtractor(BaseExtractor):
         return {"gray_diff_short": diff.astype(np.uint8), "gray_diff_long": accumulated_norm}
 
 
+class GrayDiffEnhancedExtractor(BaseExtractor):
+    motion_type = "gray_diff_enhanced"
+    description = "Extract enhanced gray-diff motion maps for tiny/far/night targets"
+    cli_args = (
+        {
+            "flags": ("--gray-diff-enhanced-alpha",),
+            "kwargs": {"type": float, "default": 0.6, "help": "Temporal decay factor for accumulated motion"},
+            "dest": "gray_diff_enhanced_alpha",
+        },
+        {
+            "flags": ("--gray-diff-enhanced-clahe-clip",),
+            "kwargs": {"type": float, "default": 2.0, "help": "CLAHE clip limit (<=0 disables CLAHE)"},
+            "dest": "gray_diff_enhanced_clahe_clip",
+        },
+        {
+            "flags": ("--gray-diff-enhanced-clahe-grid",),
+            "kwargs": {"type": int, "default": 8, "help": "CLAHE tile grid size"},
+            "dest": "gray_diff_enhanced_clahe_grid",
+        },
+        {
+            "flags": ("--gray-diff-enhanced-threshold-mode",),
+            "kwargs": {"type": str, "choices": ("adaptive", "otsu"), "default": "adaptive", "help": "Threshold mode"},
+            "dest": "gray_diff_enhanced_threshold_mode",
+        },
+        {
+            "flags": ("--gray-diff-enhanced-adapt-block-size",),
+            "kwargs": {"type": int, "default": 5, "help": "Adaptive threshold block size (odd)"},
+            "dest": "gray_diff_enhanced_adapt_block_size",
+        },
+        {
+            "flags": ("--gray-diff-enhanced-adapt-c",),
+            "kwargs": {"type": float, "default": 2.0, "help": "Adaptive threshold C"},
+            "dest": "gray_diff_enhanced_adapt_c",
+        },
+        {
+            "flags": ("--gray-diff-enhanced-short-mode",),
+            "kwargs": {"type": str, "choices": ("and", "or", "hybrid"), "default": "hybrid", "help": "Short-term fusion mode"},
+            "dest": "gray_diff_enhanced_short_mode",
+        },
+        {
+            "flags": ("--gray-diff-enhanced-hybrid-lambda",),
+            "kwargs": {"type": float, "default": 0.4, "help": "OR branch weight in hybrid mode [0,1]"},
+            "dest": "gray_diff_enhanced_hybrid_lambda",
+        },
+        {
+            "flags": ("--gray-diff-enhanced-long-norm",),
+            "kwargs": {"type": str, "choices": ("percentile", "minmax"), "default": "percentile", "help": "Long-term map normalization"},
+            "dest": "gray_diff_enhanced_long_norm",
+        },
+        {
+            "flags": ("--gray-diff-enhanced-long-p-low",),
+            "kwargs": {"type": float, "default": 1.0, "help": "Low percentile for long-term normalization"},
+            "dest": "gray_diff_enhanced_long_p_low",
+        },
+        {
+            "flags": ("--gray-diff-enhanced-long-p-high",),
+            "kwargs": {"type": float, "default": 99.0, "help": "High percentile for long-term normalization"},
+            "dest": "gray_diff_enhanced_long_p_high",
+        },
+    )
+    output_names = ("gray_diff_enhanced_short", "gray_diff_enhanced_long")
+    frame_lag = 1
+
+    def __init__(self, **kwargs):
+        self.alpha = get_arg(kwargs, "gray_diff_enhanced_alpha", type_func=float, default=0.6)
+        self.clahe_clip = get_arg(kwargs, "gray_diff_enhanced_clahe_clip", type_func=float, default=2.0)
+        self.clahe_grid = get_arg(kwargs, "gray_diff_enhanced_clahe_grid", type_func=int, default=8)
+        self.threshold_mode = get_arg(kwargs, "gray_diff_enhanced_threshold_mode", type_func=str, default="adaptive")
+        self.adapt_block_size = get_arg(kwargs, "gray_diff_enhanced_adapt_block_size", type_func=int, default=5)
+        self.adapt_c = get_arg(kwargs, "gray_diff_enhanced_adapt_c", type_func=float, default=2.0)
+        self.short_mode = get_arg(kwargs, "gray_diff_enhanced_short_mode", type_func=str, default="hybrid")
+        self.hybrid_lambda = get_arg(kwargs, "gray_diff_enhanced_hybrid_lambda", type_func=float, default=0.4)
+        self.long_norm = get_arg(kwargs, "gray_diff_enhanced_long_norm", type_func=str, default="percentile")
+        self.long_p_low = get_arg(kwargs, "gray_diff_enhanced_long_p_low", type_func=float, default=1.0)
+        self.long_p_high = get_arg(kwargs, "gray_diff_enhanced_long_p_high", type_func=float, default=99.0)
+
+        self.adapt_block_size = max(3, self.adapt_block_size)
+        if self.adapt_block_size % 2 == 0:
+            self.adapt_block_size += 1
+        self.hybrid_lambda = float(np.clip(self.hybrid_lambda, 0.0, 1.0))
+        self.long_p_low = float(np.clip(self.long_p_low, 0.0, 100.0))
+        self.long_p_high = float(np.clip(self.long_p_high, 0.0, 100.0))
+        super().__init__(**kwargs)
+
+    def _reset(self):
+        self.gray1 = None
+        self.gray2 = None
+        self.diff21 = None
+        self.accumulated_diff = None
+        self.clahe = None
+        if self.clahe_clip > 0:
+            grid = max(1, self.clahe_grid)
+            self.clahe = cv2.createCLAHE(clipLimit=self.clahe_clip, tileGridSize=(grid, grid))
+
+    def _preprocess_gray(self, frame):
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # 优化1：CLAHE提升低照度局部对比度，增强夜间/远距离弱变化
+        if self.clahe is not None:
+            gray = self.clahe.apply(gray)
+        return gray
+
+    def _fuse_short(self, diff21, diff32):
+        and_map = cv2.bitwise_and(diff21, diff32)
+        if self.short_mode == "and":
+            return and_map
+
+        or_map = cv2.bitwise_or(diff21, diff32)
+        if self.short_mode == "or":
+            return or_map
+
+        # 优化2：hybrid融合保留AND降噪能力，同时注入OR分支提高微小目标召回
+        return cv2.addWeighted(and_map, 1.0 - self.hybrid_lambda, or_map, self.hybrid_lambda, 0.0)
+
+    def _threshold_short(self, diff):
+        if self.threshold_mode == "otsu":
+            # 优化3：Otsu在整体弱对比场景更稳，不依赖固定C
+            _, binary = cv2.threshold(diff, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            return binary
+        # 优化3：保留自适应阈值路径，参数化block/C以便小目标场景调参
+        return cv2.adaptiveThreshold(
+            diff,
+            255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY,
+            self.adapt_block_size,
+            self.adapt_c,
+        )
+
+    def _normalize_long(self, long_map):
+        if self.long_norm == "minmax":
+            return cv2.normalize(long_map, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+
+        # 优化4：分位数归一化降低大运动区域对动态范围的挤占
+        low = np.percentile(long_map, self.long_p_low)
+        high = np.percentile(long_map, self.long_p_high)
+        if high <= low:
+            return np.zeros_like(long_map, dtype=np.uint8)
+        long_map = np.clip((long_map - low) * (255.0 / (high - low)), 0, 255)
+        return long_map.astype(np.uint8)
+
+    def _update(self, frame):
+        gray = self._preprocess_gray(frame)
+        if self.gray1 is None:
+            self.gray1 = gray
+            return None
+        if self.gray2 is None:
+            self.gray2 = gray
+            self.diff21 = cv2.absdiff(self.gray2, self.gray1)
+            self.accumulated_diff = np.zeros_like(self.gray2, dtype=np.float32)
+            return None
+
+        diff32 = cv2.absdiff(gray, self.gray2)
+        short_raw = self._fuse_short(self.diff21, diff32)
+        short_map = self._threshold_short(short_raw)
+
+        self.accumulated_diff = cv2.addWeighted(
+            self.accumulated_diff,
+            self.alpha,
+            self.diff21.astype(np.float32),
+            1.0 - self.alpha,
+            0,
+        )
+        long_map = self._normalize_long(self.accumulated_diff)
+
+        self.gray1 = self.gray2
+        self.gray2 = gray
+        self.diff21 = diff32
+        return {
+            "gray_diff_enhanced_short": short_map.astype(np.uint8),
+            "gray_diff_enhanced_long": long_map,
+        }
+
+
 class FgMaskExtractor(BaseExtractor):
     motion_type = "fgmask"
     description = "Extract foreground masks with OpenCV MOG2"
@@ -217,6 +390,8 @@ FEATURE_EXTRACTOR_REGISTRY = OrderedDict(
     {
         "gray_diff_short": GrayDiffExtractor,
         "gray_diff_long": GrayDiffExtractor,
+        "gray_diff_enhanced_short": GrayDiffEnhancedExtractor,
+        "gray_diff_enhanced_long": GrayDiffEnhancedExtractor,
         "fgmask": FgMaskExtractor,
         "flow_x": FlowExtractor,
         "flow_y": FlowExtractor,
