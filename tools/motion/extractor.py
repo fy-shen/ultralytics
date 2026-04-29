@@ -101,78 +101,83 @@ class GrayDiffExtractor(BaseExtractor):
 class GrayDiffEnhancedExtractor(BaseExtractor):
     motion_type = "gray_diff_enhanced"
     description = "Extract enhanced gray-diff motion maps for tiny/far/night targets"
+    """
+    默认策略偏向“保留目标运动”，不过度抑制噪声。
+    建议优先固定一套参数在多数据集复用，仅在极端场景微调。
+    """
     cli_args = (
         {
-            "flags": ("--gray-diff-enhanced-alpha",),
+            "flags": ("--gde-alpha", "--gray-diff-enhanced-alpha"),
             "kwargs": {"type": float, "default": 0.6, "help": "Temporal decay factor for accumulated motion"},
-            "dest": "gray_diff_enhanced_alpha",
+            "dest": "gde_alpha",
         },
         {
-            "flags": ("--gray-diff-enhanced-clahe-clip",),
+            "flags": ("--gde-clip", "--gray-diff-enhanced-clahe-clip"),
             "kwargs": {"type": float, "default": 2.0, "help": "CLAHE clip limit (<=0 disables CLAHE)"},
-            "dest": "gray_diff_enhanced_clahe_clip",
+            "dest": "gde_clip",
         },
         {
-            "flags": ("--gray-diff-enhanced-clahe-grid",),
+            "flags": ("--gde-grid", "--gray-diff-enhanced-clahe-grid"),
             "kwargs": {"type": int, "default": 8, "help": "CLAHE tile grid size"},
-            "dest": "gray_diff_enhanced_clahe_grid",
+            "dest": "gde_grid",
         },
         {
-            "flags": ("--gray-diff-enhanced-threshold-mode",),
+            "flags": ("--gde-th", "--gray-diff-enhanced-threshold-mode"),
             "kwargs": {"type": str, "choices": ("adaptive", "otsu"), "default": "adaptive", "help": "Threshold mode"},
-            "dest": "gray_diff_enhanced_threshold_mode",
+            "dest": "gde_th",
         },
         {
-            "flags": ("--gray-diff-enhanced-adapt-block-size",),
+            "flags": ("--gde-blk", "--gray-diff-enhanced-adapt-block-size"),
             "kwargs": {"type": int, "default": 5, "help": "Adaptive threshold block size (odd)"},
-            "dest": "gray_diff_enhanced_adapt_block_size",
+            "dest": "gde_blk",
         },
         {
-            "flags": ("--gray-diff-enhanced-adapt-c",),
+            "flags": ("--gde-c", "--gray-diff-enhanced-adapt-c"),
             "kwargs": {"type": float, "default": 2.0, "help": "Adaptive threshold C"},
-            "dest": "gray_diff_enhanced_adapt_c",
+            "dest": "gde_c",
         },
         {
-            "flags": ("--gray-diff-enhanced-short-mode",),
+            "flags": ("--gde-fuse", "--gray-diff-enhanced-short-mode"),
             "kwargs": {"type": str, "choices": ("and", "or", "hybrid"), "default": "hybrid", "help": "Short-term fusion mode"},
-            "dest": "gray_diff_enhanced_short_mode",
+            "dest": "gde_fuse",
         },
         {
-            "flags": ("--gray-diff-enhanced-hybrid-lambda",),
+            "flags": ("--gde-lam", "--gray-diff-enhanced-hybrid-lambda"),
             "kwargs": {"type": float, "default": 0.4, "help": "OR branch weight in hybrid mode [0,1]"},
-            "dest": "gray_diff_enhanced_hybrid_lambda",
+            "dest": "gde_lam",
         },
         {
-            "flags": ("--gray-diff-enhanced-long-norm",),
+            "flags": ("--gde-norm", "--gray-diff-enhanced-long-norm"),
             "kwargs": {"type": str, "choices": ("percentile", "minmax"), "default": "percentile", "help": "Long-term map normalization"},
-            "dest": "gray_diff_enhanced_long_norm",
+            "dest": "gde_norm",
         },
         {
-            "flags": ("--gray-diff-enhanced-long-p-low",),
+            "flags": ("--gde-pl", "--gray-diff-enhanced-long-p-low"),
             "kwargs": {"type": float, "default": 1.0, "help": "Low percentile for long-term normalization"},
-            "dest": "gray_diff_enhanced_long_p_low",
+            "dest": "gde_pl",
         },
         {
-            "flags": ("--gray-diff-enhanced-long-p-high",),
+            "flags": ("--gde-ph", "--gray-diff-enhanced-long-p-high"),
             "kwargs": {"type": float, "default": 99.0, "help": "High percentile for long-term normalization"},
-            "dest": "gray_diff_enhanced_long_p_high",
+            "dest": "gde_ph",
         },
     )
     output_names = ("gray_diff_enhanced_short", "gray_diff_enhanced_long")
     frame_lag = 1
 
     def __init__(self, **kwargs):
-        self.alpha = get_arg(kwargs, "gray_diff_enhanced_alpha", type_func=float, default=0.6)
-        self.clahe_clip = get_arg(kwargs, "gray_diff_enhanced_clahe_clip", type_func=float, default=2.0)
-        self.clahe_grid = get_arg(kwargs, "gray_diff_enhanced_clahe_grid", type_func=int, default=8)
-        self.threshold_mode = get_arg(kwargs, "gray_diff_enhanced_threshold_mode", type_func=str, default="adaptive")
-        self.adapt_block_size = get_arg(kwargs, "gray_diff_enhanced_adapt_block_size", type_func=int, default=5)
-        self.adapt_c = get_arg(kwargs, "gray_diff_enhanced_adapt_c", type_func=float, default=2.0)
-        self.short_mode = get_arg(kwargs, "gray_diff_enhanced_short_mode", type_func=str, default="hybrid")
-        self.hybrid_lambda = get_arg(kwargs, "gray_diff_enhanced_hybrid_lambda", type_func=float, default=0.4)
-        self.long_norm = get_arg(kwargs, "gray_diff_enhanced_long_norm", type_func=str, default="percentile")
-        self.long_p_low = get_arg(kwargs, "gray_diff_enhanced_long_p_low", type_func=float, default=1.0)
-        self.long_p_high = get_arg(kwargs, "gray_diff_enhanced_long_p_high", type_func=float, default=99.0)
+        # 参数短名优先，同时兼容旧参数名，避免历史脚本失效
+        self.alpha = get_arg(kwargs, "gde_alpha", "gray_diff_enhanced_alpha", type_func=float, default=0.6)
+        self.clahe_clip = get_arg(kwargs, "gde_clip", "gray_diff_enhanced_clahe_clip", type_func=float, default=2.0)
+        self.clahe_grid = get_arg(kwargs, "gde_grid", "gray_diff_enhanced_clahe_grid", type_func=int, default=8)
+        self.threshold_mode = get_arg(kwargs, "gde_th", "gray_diff_enhanced_threshold_mode", type_func=str, default="adaptive")
+        self.adapt_block_size = get_arg(kwargs, "gde_blk", "gray_diff_enhanced_adapt_block_size", type_func=int, default=5)
+        self.adapt_c = get_arg(kwargs, "gde_c", "gray_diff_enhanced_adapt_c", type_func=float, default=2.0)
+        self.short_mode = get_arg(kwargs, "gde_fuse", "gray_diff_enhanced_short_mode", type_func=str, default="hybrid")
+        self.hybrid_lambda = get_arg(kwargs, "gde_lam", "gray_diff_enhanced_hybrid_lambda", type_func=float, default=0.4)
+        self.long_norm = get_arg(kwargs, "gde_norm", "gray_diff_enhanced_long_norm", type_func=str, default="percentile")
+        self.long_p_low = get_arg(kwargs, "gde_pl", "gray_diff_enhanced_long_p_low", type_func=float, default=1.0)
+        self.long_p_high = get_arg(kwargs, "gde_ph", "gray_diff_enhanced_long_p_high", type_func=float, default=99.0)
 
         self.adapt_block_size = max(3, self.adapt_block_size)
         if self.adapt_block_size % 2 == 0:
@@ -194,7 +199,8 @@ class GrayDiffEnhancedExtractor(BaseExtractor):
 
     def _preprocess_gray(self, frame):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        # 优化1：CLAHE提升低照度局部对比度，增强夜间/远距离弱变化
+        # CLAHE 局部对比度增强，增强夜间/远距离弱变化
+        # 可调参数: clip(增强强度), grid(局部块大小)。
         if self.clahe is not None:
             gray = self.clahe.apply(gray)
         return gray
@@ -208,15 +214,21 @@ class GrayDiffEnhancedExtractor(BaseExtractor):
         if self.short_mode == "or":
             return or_map
 
-        # 优化2：hybrid融合保留AND降噪能力，同时注入OR分支提高微小目标召回
+        # hybrid 为 AND 与 OR 的线性加权，保留 AND 降噪能力，同时注入 OR 分支提高微小目标召回
         return cv2.addWeighted(and_map, 1.0 - self.hybrid_lambda, or_map, self.hybrid_lambda, 0.0)
 
     def _threshold_short(self, diff):
         if self.threshold_mode == "otsu":
-            # 优化3：Otsu在整体弱对比场景更稳，不依赖固定C
+            # otsu：自动搜索类间方差最大的全局阈值
+            # 优点：无需人工设定阈值；整体对比度还可以时很稳
+            # 缺点：全局共享一个阈值；光照不均、局部噪声重时容易失效
             _, binary = cv2.threshold(diff, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
             return binary
-        # 优化3：保留自适应阈值路径，参数化block/C以便小目标场景调参
+
+        # adaptive：对每个像素 x,y 在其邻域窗口(blockSize) 通过 Mean 或 Gaussian 统计数值并减去偏置(C) 得到一个计算值，
+        # 若原始像素值高于计算值输出255，否则为0。窗口越大越平滑，越小对细节更敏感，噪声越多。C 越大更容易判断成运动目标
+        # 优点：应对局部亮度变化更好；比全局阈值更适合夜间/阴影/非均匀照明
+        # 缺点：参数敏感；窗口太小会雪花噪声，太大又抹小目标
         return cv2.adaptiveThreshold(
             diff,
             255,
@@ -227,15 +239,25 @@ class GrayDiffEnhancedExtractor(BaseExtractor):
         )
 
     def _normalize_long(self, long_map):
+        """
+        功能: 归一化长时响应，避免少量强运动压制整体动态范围。
+        实现: percentile 或 minmax 归一化。
+        可调参数: norm(percentile/minmax), pl/ph(分位点)。
+        """
         if self.long_norm == "minmax":
+            # y = (x - xmin) / (xmax - xmin) * 255
+            # 对极端值非常敏感，只要少量超强运动（云边、树梢、抖动）出现，其他区域会被压得很暗
             return cv2.normalize(long_map, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
 
-        # 优化4：分位数归一化降低大运动区域对动态范围的挤占
+        # percentile 分位数归一化
+        # 优点：忽略最极端的低/高尾部，抗异常值更强，长时图更稳
+        # 缺点：如果 pl/ph 设得不合适，可能压掉弱响应或放大噪声
+        # np.percentile 找到一个数 v，使得数组里约 99% 的元素 <= v，从而不被极端值带偏
         low = np.percentile(long_map, self.long_p_low)
         high = np.percentile(long_map, self.long_p_high)
         if high <= low:
             return np.zeros_like(long_map, dtype=np.uint8)
-        long_map = np.clip((long_map - low) * (255.0 / (high - low)), 0, 255)
+        long_map = np.clip((long_map - low) / (high - low) * 255.0, 0, 255)
         return long_map.astype(np.uint8)
 
     def _update(self, frame):
