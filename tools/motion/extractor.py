@@ -99,7 +99,7 @@ class GrayDiffExtractor(BaseExtractor):
 
 
 class GrayDiffEnhancedExtractor(BaseExtractor):
-    motion_type = "gray_diff_enhanced"
+    motion_type = "gde"
     description = "Extract enhanced gray-diff motion maps for tiny/far/night targets"
     """
     默认策略偏向“保留目标运动”，不过度抑制噪声。
@@ -118,7 +118,7 @@ class GrayDiffEnhancedExtractor(BaseExtractor):
         },
         {
             "flags": ("--gde-grid", "--gray-diff-enhanced-clahe-grid"),
-            "kwargs": {"type": int, "default": 8, "help": "CLAHE tile grid size"},
+            "kwargs": {"type": int, "default": 7, "help": "CLAHE tile grid size"},
             "dest": "gde_grid",
         },
         {
@@ -133,7 +133,7 @@ class GrayDiffEnhancedExtractor(BaseExtractor):
         },
         {
             "flags": ("--gde-c", "--gray-diff-enhanced-adapt-c"),
-            "kwargs": {"type": float, "default": 2.0, "help": "Adaptive threshold C"},
+            "kwargs": {"type": float, "default": 4, "help": "Adaptive threshold C"},
             "dest": "gde_c",
         },
         {
@@ -153,12 +153,12 @@ class GrayDiffEnhancedExtractor(BaseExtractor):
         },
         {
             "flags": ("--gde-pl", "--gray-diff-enhanced-long-p-low"),
-            "kwargs": {"type": float, "default": 1.0, "help": "Low percentile for long-term normalization"},
+            "kwargs": {"type": float, "default": 0.1, "help": "Low percentile for long-term normalization"},
             "dest": "gde_pl",
         },
         {
             "flags": ("--gde-ph", "--gray-diff-enhanced-long-p-high"),
-            "kwargs": {"type": float, "default": 99.0, "help": "High percentile for long-term normalization"},
+            "kwargs": {"type": float, "default": 99.9, "help": "High percentile for long-term normalization"},
             "dest": "gde_ph",
         },
     )
@@ -274,11 +274,12 @@ class GrayDiffEnhancedExtractor(BaseExtractor):
         diff32 = cv2.absdiff(gray, self.gray2)
         short_raw = self._fuse_short(self.diff21, diff32)
         short_map = self._threshold_short(short_raw)
+        short_map = cv2.bitwise_not(short_map)
 
         self.accumulated_diff = cv2.addWeighted(
             self.accumulated_diff,
             self.alpha,
-            self.diff21.astype(np.float32),
+            short_map.astype(np.float32),
             1.0 - self.alpha,
             0,
         )
