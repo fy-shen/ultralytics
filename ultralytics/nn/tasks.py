@@ -1415,7 +1415,6 @@ class MotionDetectionModel(DetectionModel):
             model = model.float()
             if verbose:
                 LOGGER.info(f"Start load {self.pretrain_mode} pretrained weights ...")
-            # 当权重数量增加时认为是双流结构
             if self.pretrain_mode == "twostream":
                 self.reload_state_dict(model.model[:11].state_dict(),  self.model[:11].state_dict())
                 self.reload_state_dict(model.model[:11].state_dict(),  self.model[11:22].state_dict(), "mean")
@@ -1424,6 +1423,10 @@ class MotionDetectionModel(DetectionModel):
                 self.reload_state_dict(model.model[:1].state_dict(), self.model[:1].state_dict())
                 self.reload_state_dict(model.model[:1].state_dict(), self.model[1:2].state_dict(), "mean")
                 self.reload_state_dict(model.model[1:].state_dict(), self.model[3:].state_dict(), "copy")
+            if self.pretrain_mode == "p2fuse":
+                self.reload_state_dict(model.model[:3].state_dict(), self.model[:3].state_dict())
+                self.reload_state_dict(model.model[:3].state_dict(), self.model[3:6].state_dict(), "mean")
+                self.reload_state_dict(model.model[3:].state_dict(), self.model[7:].state_dict(), "copy")
             if self.pretrain_mode == "p3fuse":
                 self.reload_state_dict(model.model[:5].state_dict(), self.model[:5].state_dict())
                 self.reload_state_dict(model.model[:5].state_dict(), self.model[5:10].state_dict(), "mean")
