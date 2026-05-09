@@ -584,7 +584,7 @@ class MotionPredictRunner:
             disable=self.args.no_progress,
         )
 
-        def _task(item):
+        def _task(x):
             position = position_pool.get()  # 获取进度条位置
             try:
                 # model 线程内复用，线程间隔离
@@ -592,7 +592,7 @@ class MotionPredictRunner:
                 if model is None:
                     model = YOLO(self.args.model, task=self.model_task)
                     thread_local.model = model
-                return worker_fn(model, item, position, False)
+                return worker_fn(model, x, position, False)
             finally:
                 position_pool.put(position)  # 归还进度条位置
 
