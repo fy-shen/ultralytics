@@ -219,9 +219,17 @@ def analyze(data, args):
         txt_path = Path(txt_path)
 
         with open(txt_path, "r") as f:
-            image_paths.extend(
-                Path(x.strip()) for x in f if x.strip()
-            )
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+
+                img_path = Path(line).expanduser()
+
+                if not img_path.is_absolute():
+                    img_path = data["path"] / img_path
+
+                image_paths.append(img_path.resolve())
 
     print(f"[INFO] total images: {len(image_paths)}")
 
