@@ -205,14 +205,23 @@ def load_process(args):
     return size_set, class_counter
 
 
-def analyze(data, split, args):
+def analyze(data, args):
     plotter = Plotter(data["path"])
     # 获取类别名
     class_names = data["names"]
 
-    txt_path = data[split]
-    with open(txt_path, "r") as f:
-        image_paths = [Path(x.strip()) for x in f if x.strip()]
+    txt_paths = data[args.split]
+    if isinstance(txt_paths, (str, Path)):
+        txt_paths = [txt_paths]
+
+    image_paths = []
+    for txt_path in txt_paths:
+        txt_path = Path(txt_path)
+
+        with open(txt_path, "r") as f:
+            image_paths.extend(
+                Path(x.strip()) for x in f if x.strip()
+            )
 
     print(f"[INFO] total images: {len(image_paths)}")
 
@@ -257,7 +266,7 @@ def analyze(data, split, args):
         title_prefix="objects per image",
         xlabel="count bucket",
         ylabel="image count",
-        save_name=f"{split}_objects_count.png",
+        save_name=f"{args.split}_objects_count.png",
     )
 
     # 3. 目标尺寸统计
@@ -268,7 +277,7 @@ def analyze(data, split, args):
         title_prefix="size distribution",
         xlabel="size (pixel)",
         ylabel="obj count",
-        save_name=f"{split}_objects_size.png"
+        save_name=f"{args.split}_objects_size.png"
     )
 
 
@@ -280,14 +289,14 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--yaml", type=Path, required=True)
     parser.add_argument("--imgsz", type=int, default=-1, help="模型输入尺寸缩放后统计，小于零时按原图分辨率统计")
+    parser.add_argument("--split", type=str, default="train")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
     data = check_det_dataset(args.yaml)
-    analyze(data, "train", args)
-    analyze(data, "val", args)
+    analyze(data, args)
 
 
 if __name__ == "__main__":

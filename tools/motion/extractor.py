@@ -169,15 +169,15 @@ class GrayDiffEnhancedExtractor(BaseExtractor):
         # 参数短名优先，同时兼容旧参数名，避免历史脚本失效
         self.alpha = get_arg(kwargs, "gde_alpha", "gray_diff_enhanced_alpha", type_func=float, default=0.6)
         self.clahe_clip = get_arg(kwargs, "gde_clip", "gray_diff_enhanced_clahe_clip", type_func=float, default=2.0)
-        self.clahe_grid = get_arg(kwargs, "gde_grid", "gray_diff_enhanced_clahe_grid", type_func=int, default=8)
+        self.clahe_grid = get_arg(kwargs, "gde_grid", "gray_diff_enhanced_clahe_grid", type_func=int, default=7)
         self.threshold_mode = get_arg(kwargs, "gde_th", "gray_diff_enhanced_threshold_mode", type_func=str, default="adaptive")
         self.adapt_block_size = get_arg(kwargs, "gde_blk", "gray_diff_enhanced_adapt_block_size", type_func=int, default=5)
-        self.adapt_c = get_arg(kwargs, "gde_c", "gray_diff_enhanced_adapt_c", type_func=float, default=2.0)
+        self.adapt_c = get_arg(kwargs, "gde_c", "gray_diff_enhanced_adapt_c", type_func=float, default=4.0)
         self.short_mode = get_arg(kwargs, "gde_fuse", "gray_diff_enhanced_short_mode", type_func=str, default="hybrid")
         self.hybrid_lambda = get_arg(kwargs, "gde_lam", "gray_diff_enhanced_hybrid_lambda", type_func=float, default=0.4)
         self.long_norm = get_arg(kwargs, "gde_norm", "gray_diff_enhanced_long_norm", type_func=str, default="percentile")
-        self.long_p_low = get_arg(kwargs, "gde_pl", "gray_diff_enhanced_long_p_low", type_func=float, default=1.0)
-        self.long_p_high = get_arg(kwargs, "gde_ph", "gray_diff_enhanced_long_p_high", type_func=float, default=99.0)
+        self.long_p_low = get_arg(kwargs, "gde_pl", "gray_diff_enhanced_long_p_low", type_func=float, default=0.1)
+        self.long_p_high = get_arg(kwargs, "gde_ph", "gray_diff_enhanced_long_p_high", type_func=float, default=99.9)
 
         self.adapt_block_size = max(3, self.adapt_block_size)
         if self.adapt_block_size % 2 == 0:
