@@ -50,7 +50,7 @@ For a more detailed comparison table, please visit the **Compare Specifications*
 
 ## What is NVIDIA JetPack?
 
-[NVIDIA JetPack SDK](https://developer.nvidia.com/embedded/jetpack) powering the Jetson modules is the most comprehensive solution and provides full development environment for building end-to-end accelerated AI applications and shortens time to market. JetPack includes Jetson Linux with bootloader, Linux kernel, Ubuntu desktop environment, and a complete set of libraries for acceleration of GPU computing, multimedia, graphics, and [computer vision](https://www.ultralytics.com/glossary/computer-vision-cv). It also includes samples, documentation, and developer tools for both host computer and developer kit, and supports higher level SDKs such as [DeepStream](https://docs.ultralytics.com/guides/deepstream-nvidia-jetson/) for streaming video analytics, Isaac for robotics, and Riva for conversational AI.
+[NVIDIA JetPack SDK](https://developer.nvidia.com/embedded/jetpack) powering the Jetson modules is the most comprehensive solution and provides full development environment for building end-to-end accelerated AI applications and shortens time to market. JetPack includes Jetson Linux with bootloader, Linux kernel, Ubuntu desktop environment, and a complete set of libraries for acceleration of GPU computing, multimedia, graphics, and [computer vision](https://www.ultralytics.com/glossary/computer-vision-cv). It also includes samples, documentation, and developer tools for both host computer and developer kit, and supports higher level SDKs such as [DeepStream](https://docs.ultralytics.com/guides/deepstream-nvidia-jetson) for streaming video analytics, Isaac for robotics, and Riva for conversational AI.
 
 ## Flash JetPack to NVIDIA Jetson
 
@@ -294,7 +294,7 @@ pip install onnxruntime_gpu-1.17.0-cp38-cp38-linux_aarch64.whl
 
 !!! note
 
-    `onnxruntime-gpu` will automatically revert back the numpy version to latest. So we need to reinstall numpy to `1.23.5` to fix an issue by executing:
+    `onnxruntime-gpu` will automatically revert back the NumPy version to latest. So we need to reinstall NumPy to `1.23.5` to fix an issue by executing:
 
     `pip install numpy==1.23.5`
 
@@ -343,6 +343,10 @@ The YOLO26n model in PyTorch format is converted to TensorRT to run inference wi
 ### Use NVIDIA Deep Learning Accelerator (DLA)
 
 [NVIDIA Deep Learning Accelerator (DLA)](https://developer.nvidia.com/deep-learning-accelerator) is a specialized hardware component built into NVIDIA Jetson devices that optimizes deep learning inference for energy efficiency and performance. By offloading tasks from the GPU (freeing it up for more intensive processes), DLA enables models to run with lower power consumption while maintaining high throughput, ideal for embedded systems and real-time AI applications.
+
+!!! warning "TensorRT 11.0 and DLA"
+
+    DLA is not supported in TensorRT 11.0 and is planned to return in a later release, so DLA export requires TensorRT 10.x. On JetPack 6.x/7.x, export with a TensorRT 10.x build to use DLA, or use the GPU for TensorRT 11.0 engines.
 
 The following Jetson devices are equipped with DLA hardware:
 
@@ -896,7 +900,7 @@ Non-essential background services (Bluetooth, connectivity managers, unused hard
 systemctl list-units --type=service --state=running
 
 # Disable a service
-sudo systemctl disable <service-name>
+sudo systemctl disable SERVICE_NAME
 ```
 
 ### 3. Profile Memory Usage

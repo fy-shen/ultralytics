@@ -206,3 +206,6 @@ calibration_*.npy
 args.yaml
 results.csv
 /.codex
+
+# CI test asset cache
+.ultralytics_cache/
