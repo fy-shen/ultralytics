@@ -152,7 +152,7 @@ dmypy.json
 runs/
 wandb/
 .DS_Store
-*_local.py
+*_local.*
 *_local/
 
 # Neural Network weights -----------------------------------------------------------------------------------------------
@@ -205,3 +205,4 @@ calibration_*.npy
 # Training logs
 args.yaml
 results.csv
+/.codex
