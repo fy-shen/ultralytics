@@ -16,6 +16,7 @@ class BaseExtractor:
     description = ""
     cli_args = ()
     output_names = ()
+    output_aliases = {}
     frame_lag = 0
 
     def __init__(self, **kwargs):
@@ -40,12 +41,18 @@ class GrayDiffExtractor(BaseExtractor):
     description = "Extract gray-diff motion feature maps from video"
     cli_args = (
         {
-            "flags": ("--gray-diff-alpha", "--alpha"),
-            "kwargs": {"type": float, "default": 0.5, "help": "Temporal decay factor for accumulated motion"},
+            "flags": ("--gd-alpha",),
+            "kwargs": {
+                "type": float,
+                "default": 0.5,
+                "metavar": "alpha",
+                "help": "gray_diff_alpha (default: %(default)s)\nTemporal decay factor for accumulated motion",
+            },
             "dest": "gray_diff_alpha",
         },
     )
     output_names = ("gray_diff_short", "gray_diff_long")
+    output_aliases = {"gd_short": "gray_diff_short", "gd_long": "gray_diff_long"}
     frame_lag = 1
 
     def __init__(self, **kwargs):
@@ -103,66 +110,125 @@ class GrayDiffEnhancedExtractor(BaseExtractor):
     description = "Extract enhanced gray-diff motion maps for tiny/far/night targets"
     """
     默认策略偏向“保留目标运动”，不过度抑制噪声。
-    建议优先固定一套参数在多数据集复用，仅在极端场景微调。
+    建议使用默认固定参数，仅在极端场景微调。
     """
     cli_args = (
         {
-            "flags": ("--gde-alpha", "--gray-diff-enhanced-alpha"),
-            "kwargs": {"type": float, "default": 0.6, "help": "Temporal decay factor for accumulated motion"},
+            "flags": ("--gde-alpha",),
+            "kwargs": {
+                "type": float,
+                "default": 0.6,
+                "metavar": "alpha",
+                "help": "gray_diff_enhanced_alpha (default: %(default)s)\nTemporal decay factor for accumulated motion",
+            },
             "dest": "gde_alpha",
         },
         {
-            "flags": ("--gde-clip", "--gray-diff-enhanced-clahe-clip"),
-            "kwargs": {"type": float, "default": 2.0, "help": "CLAHE clip limit (<=0 disables CLAHE)"},
+            "flags": ("--gde-clip",),
+            "kwargs": {
+                "type": float,
+                "default": 2.0,
+                "metavar": "clip",
+                "help": "gray_diff_enhanced_clahe_clip (default: %(default)s)\nCLAHE clip limit; <=0 disables CLAHE",
+            },
             "dest": "gde_clip",
         },
         {
-            "flags": ("--gde-grid", "--gray-diff-enhanced-clahe-grid"),
-            "kwargs": {"type": int, "default": 7, "help": "CLAHE tile grid size"},
+            "flags": ("--gde-grid",),
+            "kwargs": {
+                "type": int,
+                "default": 7,
+                "metavar": "grid",
+                "help": "gray_diff_enhanced_clahe_grid (default: %(default)s)\nCLAHE tile grid size",
+            },
             "dest": "gde_grid",
         },
         {
-            "flags": ("--gde-th", "--gray-diff-enhanced-threshold-mode"),
-            "kwargs": {"type": str, "choices": ("adaptive", "otsu"), "default": "adaptive", "help": "Threshold mode"},
+            "flags": ("--gde-th",),
+            "kwargs": {
+                "type": str,
+                "choices": ("adaptive", "otsu"),
+                "default": "adaptive",
+                "metavar": "mode",
+                "help": "gray_diff_enhanced_threshold_mode (default: %(default)s)\nThreshold mode",
+            },
             "dest": "gde_th",
         },
         {
-            "flags": ("--gde-blk", "--gray-diff-enhanced-adapt-block-size"),
-            "kwargs": {"type": int, "default": 5, "help": "Adaptive threshold block size (odd)"},
+            "flags": ("--gde-blk",),
+            "kwargs": {
+                "type": int,
+                "default": 5,
+                "metavar": "size",
+                "help": "gray_diff_enhanced_adapt_block_size (default: %(default)s)\nAdaptive threshold block size, odd",
+            },
             "dest": "gde_blk",
         },
         {
-            "flags": ("--gde-c", "--gray-diff-enhanced-adapt-c"),
-            "kwargs": {"type": float, "default": 4, "help": "Adaptive threshold C"},
+            "flags": ("--gde-c",),
+            "kwargs": {
+                "type": float,
+                "default": 4,
+                "metavar": "c",
+                "help": "gray_diff_enhanced_adapt_c (default: %(default)s)\nAdaptive threshold C",
+            },
             "dest": "gde_c",
         },
         {
-            "flags": ("--gde-fuse", "--gray-diff-enhanced-short-mode"),
-            "kwargs": {"type": str, "choices": ("and", "or", "hybrid"), "default": "hybrid", "help": "Short-term fusion mode"},
+            "flags": ("--gde-fuse",),
+            "kwargs": {
+                "type": str,
+                "choices": ("and", "or", "hybrid"),
+                "default": "hybrid",
+                "metavar": "mode",
+                "help": "gray_diff_enhanced_short_mode (default: %(default)s)\nShort-term fusion mode",
+            },
             "dest": "gde_fuse",
         },
         {
-            "flags": ("--gde-lam", "--gray-diff-enhanced-hybrid-lambda"),
-            "kwargs": {"type": float, "default": 0.4, "help": "OR branch weight in hybrid mode [0,1]"},
+            "flags": ("--gde-lam",),
+            "kwargs": {
+                "type": float,
+                "default": 0.4,
+                "metavar": "lambda",
+                "help": "gray_diff_enhanced_hybrid_lambda (default: %(default)s)\nOR branch weight in hybrid mode [0,1]",
+            },
             "dest": "gde_lam",
         },
         {
-            "flags": ("--gde-norm", "--gray-diff-enhanced-long-norm"),
-            "kwargs": {"type": str, "choices": ("percentile", "minmax"), "default": "percentile", "help": "Long-term map normalization"},
+            "flags": ("--gde-norm",),
+            "kwargs": {
+                "type": str,
+                "choices": ("percentile", "minmax"),
+                "default": "percentile",
+                "metavar": "mode",
+                "help": "gray_diff_enhanced_long_norm (default: %(default)s)\nLong-term map normalization",
+            },
             "dest": "gde_norm",
         },
         {
-            "flags": ("--gde-pl", "--gray-diff-enhanced-long-p-low"),
-            "kwargs": {"type": float, "default": 0.1, "help": "Low percentile for long-term normalization"},
+            "flags": ("--gde-pl",),
+            "kwargs": {
+                "type": float,
+                "default": 0.1,
+                "metavar": "p",
+                "help": "gray_diff_enhanced_long_p_low (default: %(default)s)\nLow percentile for long-term normalization",
+            },
             "dest": "gde_pl",
         },
         {
-            "flags": ("--gde-ph", "--gray-diff-enhanced-long-p-high"),
-            "kwargs": {"type": float, "default": 99.9, "help": "High percentile for long-term normalization"},
+            "flags": ("--gde-ph",),
+            "kwargs": {
+                "type": float,
+                "default": 99.9,
+                "metavar": "p",
+                "help": "gray_diff_enhanced_long_p_high (default: %(default)s)\nHigh percentile for long-term normalization",
+            },
             "dest": "gde_ph",
         },
     )
     output_names = ("gray_diff_enhanced_short", "gray_diff_enhanced_long")
+    output_aliases = {"gde_short": "gray_diff_enhanced_short", "gde_long": "gray_diff_enhanced_long"}
     frame_lag = 1
 
     def __init__(self, **kwargs):
@@ -299,23 +365,23 @@ class FgMaskExtractor(BaseExtractor):
     description = "Extract foreground masks with OpenCV MOG2"
     cli_args = (
         {
-            "flags": ("--fgmask-history", "--history"),
-            "kwargs": {"type": int, "default": 500, "help": "MOG2 history length"},
+            "flags": ("--fgmask-history",),
+            "kwargs": {"type": int, "default": 500, "metavar": "n", "help": "fgmask_history (default: %(default)s)\nMOG2 history length"},
             "dest": "fgmask_history",
         },
         {
-            "flags": ("--fgmask-var-threshold", "--var-threshold"),
-            "kwargs": {"type": int, "default": 50, "help": "MOG2 variance threshold"},
+            "flags": ("--fgmask-var-threshold",),
+            "kwargs": {"type": int, "default": 50, "metavar": "threshold", "help": "fgmask_var_threshold (default: %(default)s)\nMOG2 variance threshold"},
             "dest": "fgmask_var_threshold",
         },
         {
-            "flags": ("--fgmask-kernel-size", "--kernel-size"),
-            "kwargs": {"type": int, "default": 3, "help": "Morphology kernel size"},
+            "flags": ("--fgmask-kernel-size",),
+            "kwargs": {"type": int, "default": 3, "metavar": "size", "help": "fgmask_kernel_size (default: %(default)s)\nMorphology kernel size"},
             "dest": "fgmask_kernel_size",
         },
         {
-            "flags": ("--fgmask-min-area", "--min-area"),
-            "kwargs": {"type": int, "default": 0, "help": "Minimum contour area to keep"},
+            "flags": ("--fgmask-min-area",),
+            "kwargs": {"type": int, "default": 0, "metavar": "area", "help": "fgmask_min_area (default: %(default)s)\nMinimum contour area to keep"},
             "dest": "fgmask_min_area",
         },
     )
@@ -363,8 +429,8 @@ class FlowExtractor(BaseExtractor):
     description = "Extract two-stream optical flow as grayscale images"
     cli_args = (
         {
-            "flags": ("--flow-bound", "--bound"),
-            "kwargs": {"type": int, "default": 15, "help": "Flow value bound for normalization"},
+            "flags": ("--flow-bound",),
+            "kwargs": {"type": int, "default": 15, "metavar": "bound", "help": "flow_bound (default: %(default)s)\nFlow value bound for normalization"},
             "dest": "flow_bound",
         },
     )
@@ -435,6 +501,7 @@ def build_motion_type_specs():
         specs[motion_type] = {
             "description": getattr(extractor_cls, "description", motion_type),
             "feature_names": list(getattr(extractor_cls, "output_names", ())),
+            "feature_aliases": dict(getattr(extractor_cls, "output_aliases", {})),
             "args": [deepcopy(x) for x in getattr(extractor_cls, "cli_args", ())],
         }
     return specs
@@ -484,6 +551,9 @@ def save_motion_features(
     feature_names,
     save_dirs=None,
     source_token="videos",
+    save_rgb=False,
+    rgb_save_dir=None,
+    overwrite_rgb=False,
     progress=True,
     progress_position=None,
     progress_leave=True,
@@ -505,10 +575,17 @@ def save_motion_features(
         out_dir = Path(save_dirs.get(name) or Path(str(video_dir).replace(source_token, name)))
         out_dir.mkdir(parents=True, exist_ok=True)
         feature_dirs[name] = out_dir
+    rgb_dir = Path(rgb_save_dir or Path(str(video_dir).replace(source_token, "images")))
+    if save_rgb:
+        rgb_dir.mkdir(parents=True, exist_ok=True)
 
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     if total_frames <= 0:
         total_frames = None
+    rgb_complete = save_rgb and not overwrite_rgb and total_frames is not None and all(
+        (rgb_dir / f"{video_name}_{idx:06d}.jpg").exists() for idx in range(total_frames)
+    )
+    rgb_saved_count = 0
 
     with tqdm(
         total=total_frames,
@@ -522,6 +599,12 @@ def save_motion_features(
             ret, frame = cap.read()
             if not ret:
                 break
+            if save_rgb and not rgb_complete:
+                rgb_path = rgb_dir / f"{video_name}_{frame_idx:06d}.jpg"
+                if overwrite_rgb or not rgb_path.exists():
+                    cv2.imwrite(str(rgb_path), frame)
+                    rgb_saved_count += 1
+
             # target_idx 可能不一致，先存放到 bucket
             for target_idx, features in pipeline.update(frame, frame_idx):
                 bucket = pending.setdefault(target_idx, {})
@@ -537,7 +620,57 @@ def save_motion_features(
             frame_idx += 1
             pbar.update(1)
             if progress and frame_idx % 30 == 0:
-                pbar.set_postfix(saved=saved_count, pending=len(pending))
+                pbar.set_postfix(features=saved_count, rgb=rgb_saved_count, pending=len(pending))
+    cap.release()
+    return saved_count
+
+
+def save_video_frames(
+    video_path,
+    source_token="videos",
+    output_token="images",
+    frame_stride=1,
+    overwrite=False,
+    progress=True,
+    progress_position=None,
+    progress_leave=True,
+):
+    video_path = Path(video_path)
+    cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        raise RuntimeError(f"Cannot open video: {video_path}")
+    video_dir, video_name, _ = split_path(video_path)
+    out_dir = Path(str(video_dir).replace(source_token, output_token))
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    if total_frames <= 0:
+        total_frames = None
+
+    frame_idx = 0
+    saved_count = 0
+    with tqdm(
+        total=total_frames,
+        desc=f"Frames {video_name[:40]:<40}",
+        unit="frame",
+        disable=not progress,
+        position=progress_position,
+        leave=progress_leave,
+    ) as pbar:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            if frame_idx % frame_stride == 0:
+                file_name = f"{video_name}_{frame_idx:06d}.jpg"
+                out_path = out_dir / file_name
+                if overwrite or not out_path.exists():
+                    cv2.imwrite(str(out_path), frame)
+                    saved_count += 1
+            frame_idx += 1
+            pbar.update(1)
+            if progress and frame_idx % 30 == 0:
+                pbar.set_postfix(saved=saved_count)
     cap.release()
     return saved_count
 
@@ -545,7 +678,15 @@ def save_motion_features(
 def run_motion_extraction(args, motion_types):
     from tools.motion.parser import get_motion_kwargs_from_args
 
-    motion_kwargs, feature_names = get_motion_kwargs_from_args(args, motion_types)
+    motion_types = list(motion_types or [])
+    frame_stride = max(1, int(getattr(args, "frame_stride", 1)))
+    frames_only = bool(getattr(args, "frames_only", False))
+    save_rgb = bool(getattr(args, "save_rgb", False))
+    overwrite_rgb = bool(getattr(args, "overwrite_rgb", False))
+    if not motion_types and not frames_only:
+        raise ValueError("Please set --motion for feature extraction, or use --frames-only to save RGB frames only.")
+
+    motion_kwargs, feature_names = get_motion_kwargs_from_args(args, motion_types) if motion_types else ({}, [])
     video_paths = iter_video_paths(video=args.video, video_dir=args.video_dir)
     if not video_paths:
         print("[WARN] No videos found.")
@@ -555,19 +696,32 @@ def run_motion_extraction(args, motion_types):
     no_progress = bool(getattr(args, "no_progress", False))
 
     def _task(video_path, position):
-        saved = save_motion_features(
-            video_path,
-            feature_names=feature_names,
-            progress=not no_progress,
-            progress_position=position,
-            progress_leave=False if workers > 1 else True,
-            **motion_kwargs,
-        )
+        if frames_only:
+            saved = save_video_frames(
+                video_path,
+                frame_stride=frame_stride,
+                overwrite=overwrite_rgb,
+                progress=not no_progress,
+                progress_position=position,
+                progress_leave=False if workers > 1 else True,
+            )
+        else:
+            saved = save_motion_features(
+                video_path,
+                feature_names=feature_names,
+                save_rgb=save_rgb,
+                overwrite_rgb=overwrite_rgb,
+                progress=not no_progress,
+                progress_position=position,
+                progress_leave=False if workers > 1 else True,
+                **motion_kwargs,
+            )
         return video_path, saved
 
     if workers == 1:
         for video_path in video_paths:
-            print(f"[INFO] Start extract {video_path.name} motion feature maps ...")
+            action = "RGB frames" if frames_only else "motion feature maps"
+            print(f"[INFO] Start extract {video_path.name} {action} ...")
             _, saved = _task(video_path, 0)
             print(f"[DONE] {video_path.name}: saved={saved}")
         return
